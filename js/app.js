@@ -887,7 +887,9 @@ var RemoteModel = class extends EventTarget {
   /** Доли звуков в грузе (как soundsInPrior). Пока не загружено — пусто, загрузка уже идёт. */
   possible(profileId, typeId = null, price = null) {
     const table = this.possibleBy.get(profileId);
-    if (table instanceof Map) return table.get(comboKey(typeId, price)) ?? /* @__PURE__ */ new Map();
+    if (table instanceof Map) {
+      return table.get(comboKey(typeId, price)) ?? table.get(comboKey(typeId, null)) ?? table.get(comboKey(null, price)) ?? table.get(comboKey(null, null)) ?? /* @__PURE__ */ new Map();
+    }
     if (profileId != null && !table) this.loadPossible(profileId);
     return /* @__PURE__ */ new Map();
   }
@@ -1319,10 +1321,12 @@ function workerFromBundle(name) {
   if (!src) return null;
   return new Worker(URL.createObjectURL(new Blob([src], { type: "text/javascript" })));
 }
-function makeWorker(name) {
+function makeWorker(name, onDead) {
   if (location.protocol !== "file:") {
     try {
-      return new Worker(new URL(`js/${name}`, document.baseURI), { type: "module" });
+      const w = new Worker(new URL(`js/${name}`, document.baseURI), { type: "module" });
+      w.addEventListener("error", () => onDead?.(workerFromBundle(name)), { once: true });
+      return w;
     } catch (err) {
       const fallback = workerFromBundle(name);
       if (fallback) return fallback;
@@ -4793,7 +4797,6 @@ async function readTooltip() {
 }
 var tracker = new GridTracker();
 var labels = new LabelReader(data.types.map((t) => ({ id: t.id, en: t.name })));
-window.__abiear = { tracker, grid, state, priceSeen, syncPrices };
 setTimeout(() => {
   const lang2 = store.get(KEYS_OCR_LANG, "eng+rus");
   if (reader.canRead) reader.load(lang2).catch((err) => console.warn("OCR:", err));
@@ -4801,18 +4804,27 @@ setTimeout(() => {
 }, 100);
 var gridWorker = null;
 try {
-  gridWorker = makeWorker("grid-worker.js");
+  gridWorker = makeWorker("grid-worker.js", reviveGridWorker);
 } catch (err) {
   console.error("grid-worker:", err);
 }
 var gridWaiting = /* @__PURE__ */ new Map();
 var gridSeq = 0;
 var lastScanMs = 0;
-if (gridWorker) gridWorker.onmessage = ({ data: { id, det, ms } }) => {
+function onGridMessage({ data: { id, det, ms } }) {
   if (ms != null) lastScanMs = ms;
   gridWaiting.get(id)?.(det);
   gridWaiting.delete(id);
-};
+}
+if (gridWorker) gridWorker.onmessage = onGridMessage;
+function reviveGridWorker(w) {
+  if (!w) return;
+  gridLog("воркер сетки из файла не поднялся — взял встроенный");
+  gridWorker = w;
+  w.onmessage = onGridMessage;
+  for (const [, fn] of gridWaiting) fn(null);
+  gridWaiting.clear();
+}
 var GRID_STUCK_MS = 15e3;
 var DETECT_TIMEOUT_MS = 5e3;
 var GRID_EVERY_MS = 200;
@@ -5379,7 +5391,9 @@ function heardItems(g) {
       cur2.ok = isGood(r);
     }
   }
-  const items = [...byItem.values()].filter((x) => x.p >= 0.01 && x.item.rarity !== 4).sort((a, b) => b.p - a.p);
+  const all = [...byItem.values()].filter((x) => x.p >= 0.01).sort((a, b) => b.p - a.p);
+  const items = all.filter((x) => x.item.rarity !== 4);
+  if (!items.length && all.length) items.push(all[0]);
   if (!items.length) return null;
   items.stats = heardStats([...byItem.values()]);
   const cur = g.showId != null ? items.find((x) => x.item.id === g.showId) : null;
@@ -6209,5 +6223,6 @@ try {
   console.error(err);
   setStatus(`${L("Не удалось загрузить звуки", "Failed to load sounds")}: ${err.message}`);
 }
+window.__abiear = { tracker, grid, state, priceSeen, syncPrices, engine, reader };
 
 })();
