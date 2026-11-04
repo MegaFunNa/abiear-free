@@ -14,7 +14,12 @@
   <link rel="stylesheet" href="../css/gate.css">
   <script src="../js/lang.js"></script>
 </head>
-<body class="site s-guide">
+<body class="site s-guide space">
+<div class="space-bg" aria-hidden="true">
+  <span class="space-neb n1"></span><span class="space-neb n2"></span><span class="space-neb n3"></span>
+  <span class="space-grid"></span>
+  <canvas class="space-stars"></canvas>
+</div>
 <header class="s-nav"><div class="s-nav-in">
   <a class="brand" href="../gate.html"><svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2 28 9v14l-12 7-12-7V9z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><path d="M10 13v6M14 10v12M18 12v8M22 14v4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg><span class="brand-name">ABI <b>Merchant</b> <span class="brand-suffix">Unlimited</span></span></a>
   <nav class="s-links" aria-label="Гайды" data-en-aria-label="Guides">
@@ -70,6 +75,60 @@
     <a href="#" data-lang-switch>English</a>
   </nav>
 </div></footer>
+<script>
+  // космический фон: звёзды на канвасе. Тихий режим — если в системе включено
+  // «уменьшить движение», рисуем один статичный кадр и не крутим анимацию.
+  (() => {
+    const cv = document.querySelector(".space-stars");
+    if (!cv) return;
+    const ctx = cv.getContext("2d");
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const DPR = Math.min(devicePixelRatio || 1, 2);
+    let w = 0, h = 0, stars = [], raf = 0;
+
+    function resize() {
+      w = cv.clientWidth; h = cv.clientHeight;
+      cv.width = Math.round(w * DPR); cv.height = Math.round(h * DPR);
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      const n = Math.min(150, Math.round((w * h) / 11000));
+      stars = Array.from({ length: n }, () => ({
+        x: Math.random() * w,
+        y: Math.random() * h,
+        z: 0.25 + Math.random() * 0.75,          // глубина: размер, яркость и скорость
+        r: 0.4 + Math.random() * 1.1,
+        p: Math.random() * 6.283,                // фаза мерцания
+        s: 0.3 + Math.random() * 0.9             // своя скорость мерцания
+      }));
+      if (reduce) draw(0);
+    }
+
+    function draw(t) {
+      ctx.clearRect(0, 0, w, h);
+      for (const st of stars) {
+        const y = reduce ? st.y : (st.y + t * 0.004 * st.z) % (h + 4);
+        const a = reduce ? 0.7 * st.z
+                         : (0.35 + 0.65 * Math.abs(Math.sin(t * 0.0009 * st.s + st.p))) * st.z;
+        ctx.globalAlpha = Math.min(1, a);
+        ctx.fillStyle = st.z > 0.78 ? "#dbe8ff" : (st.z > 0.55 ? "#ffffff" : "#f2d98a");
+        ctx.beginPath();
+        ctx.arc(st.x, y, st.r * (0.6 + st.z * 0.6), 0, 6.2832);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    function loop(t) { draw(t); raf = requestAnimationFrame(loop); }
+    function start() { if (!raf && !reduce) raf = requestAnimationFrame(loop); }
+    function stop() { if (raf) { cancelAnimationFrame(raf); raf = 0; } }
+
+    addEventListener("resize", resize, { passive: true });
+    addEventListener("orientationchange", resize);
+    document.addEventListener("visibilitychange", () => (document.hidden ? stop() : start()));
+
+    resize();
+    start();
+  })();
+</script>
 <script src="../js/guide.js"></script>
 </body>
 </html>
