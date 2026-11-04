@@ -217,3 +217,7 @@ a.s-map:hover { border-color: var(--accent-line); transform: translateY(-2px); c
 .guide-video { width: 100%; aspect-ratio: 16 / 9; background: #050706; border: 1px solid var(--line); border-radius: 12px; object-fit: cover; }
 .s-finds-note { margin: 0; font-size: 13px; line-height: 1.55; color: var(--text-dim, #9aa3a0); }
 @media (max-width: 900px) { .s-finds { padding-top: 28px; border-top: 1px solid var(--line); } }
+
+/* переключатель языка — <button>, а их .s-lang рассчитано на ссылку:
+   без сброса браузер рисует серую кнопку поверх их стиля */
+button.s-lang { background: none; border: 0; cursor: pointer; font-family: var(--font-mono); }
