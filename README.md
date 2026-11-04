@@ -4,7 +4,7 @@
 
 **Груз торговца: слышит звук, читает размер и цену — и сразу говорит, брать или нет**
 
-[![Открыть ABI Merchant](https://img.shields.io/badge/▶_Открыть_Merchant_Ear-2ea043?style=for-the-badge&logo=github&logoColor=white)](https://ВАШ-ЛОГИН.github.io/РЕПО/)
+[![Открыть ABI Merchant](https://img.shields.io/badge/▶_Открыть_ABI_Merchant-2ea043?style=for-the-badge&logo=github&logoColor=white)](https://megafunna.github.io/abiear-free/)
 
 **Ничего качать и ставить не нужно — нажал кнопку и работаешь.** 🕹️
 Бесплатно, без регистрации и без пробного режима.
@@ -204,7 +204,8 @@ ABI Merchant разбирает каждый груз **по трём призн
 
 **Свой GitHub Pages:** залей содержимое в корень публичного репозитория (чтобы `index.html`
 лежал в корне), затем *Settings → Pages → Deploy from a branch → main / (root)*. Через минуту
-сайт будет по адресу `https://ЛОГИН.github.io/РЕПО/`.
+сайт будет по адресу `https://megafunna.github.io/abiear-free/`
+(у себя подставьте свой логин и имя репозитория).
 
 </details>
 
