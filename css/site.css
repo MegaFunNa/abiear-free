@@ -173,6 +173,13 @@ a.s-map:hover { border-color: var(--accent-line); transform: translateY(-2px); c
 /* ---------- подвал ---------- */
 .s-foot { margin-top: 24px; border-top: 1px solid var(--line); background: rgba(17, 20, 18, 0.6); }
 .s-foot-in { max-width: 1200px; margin: 0 auto; padding: 36px var(--gutter) 44px; display: grid; grid-template-columns: minmax(180px, 1fr) auto auto; gap: 32px 64px; }
+/* Логотип в подвале: три колонки по содержимому, лишнее место делится между
+   ними. Иначе колонка бренда выходила узкой (211px), знак сжимался до 22-26px,
+   а плашка «Unlimited» падала под название. */
+.s-foot-in { grid-template-columns: auto auto auto; justify-content: space-between; column-gap: 24px; }
+.brand .brand-mark { flex: 0 0 28px; width: 28px; height: 28px; }
+.s-foot-brand .brand { flex-wrap: nowrap; }
+.s-foot-brand .brand-suffix { font-size: 9px; padding: 2px 6px 1px; margin-left: 6px; }
 /* Гайды столбиками по 4: новые добавляют столбец справа, а не удлиняют подвал. */
 .s-foot-guides { display: grid; grid-template-rows: repeat(4, auto); grid-auto-flow: column; gap: 10px 40px; }
 .s-foot-brand { display: flex; flex-direction: column; gap: 14px; }
@@ -256,3 +263,87 @@ body.space .s-cta .btn.primary { box-shadow: 0 0 0 1px rgba(242, 194, 48, 0.25),
 /* строка версии не должна раздувать коробку входа — прижимаем к низу */
 .s-key .gate-ver { position: absolute; right: 18px; bottom: 11px; margin: 0;
   font: 600 10px/1 var(--font-mono); letter-spacing: 0.04em; color: var(--text-2); opacity: 0.5; }
+
+
+/* ==========================================================================
+   Средние секции: космическое стекло вместо плоских карточек.
+   Сетки и размеры колонок не трогаем — только фон, рамки, скругления, акценты.
+   ========================================================================== */
+.s-steps li,
+a.s-map,
+.s-cards a {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.012)),
+    radial-gradient(130% 100% at 50% -10%, rgba(129, 152, 255, 0.08), rgba(0, 0, 0, 0) 62%);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 18px;
+  box-shadow: 0 26px 55px -40px rgba(0, 0, 0, 0.95), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transition: border-color var(--t) var(--ease), box-shadow var(--t) var(--ease), transform var(--t) var(--ease);
+}
+.s-steps li:hover,
+a.s-map:hover,
+.s-cards a:hover {
+  border-color: rgba(242, 194, 48, 0.42);
+  box-shadow: 0 0 0 1px rgba(242, 194, 48, 0.14),
+              0 28px 60px -36px rgba(242, 194, 48, 0.28),
+              inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+/* заголовки секций — светящаяся точка */
+.s-h2::before {
+  content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 11px;
+  vertical-align: middle; border-radius: 50%; background: var(--accent);
+  box-shadow: 0 0 12px rgba(242, 194, 48, 0.75);
+}
+
+/* шаги: номер в светящейся плашке */
+.s-steps li { padding: 22px 20px 20px; }
+.s-num {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 34px; height: 34px; padding: 0 9px; margin-bottom: 16px;
+  border-radius: 11px;
+  background: linear-gradient(180deg, rgba(242, 194, 48, 0.2), rgba(242, 194, 48, 0.05));
+  border: 1px solid rgba(242, 194, 48, 0.32);
+  color: var(--accent-2);
+  text-shadow: 0 0 14px rgba(242, 194, 48, 0.45);
+}
+
+/* карты: мягкое затемнение поверх картинки, режимы — стеклянные */
+.s-map img { filter: saturate(0.95) contrast(1.06) brightness(0.96); }
+.s-map::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 62%; z-index: 1;
+  background: linear-gradient(180deg, rgba(5, 7, 11, 0.55), rgba(5, 7, 11, 0));
+  pointer-events: none;
+}
+.s-soon { z-index: 2; }
+.s-modes li { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.08); }
+
+/* советы: иконка в светящемся квадрате, строка подсвечивается */
+.s-tips li {
+  padding: 16px 14px; border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 13px; transition: background var(--t) var(--ease);
+}
+.s-tips li:first-child { padding-top: 16px; }
+.s-tips li:hover { background: rgba(255, 255, 255, 0.035); }
+.s-tip-ic {
+  width: 42px; height: 42px; border-radius: 13px;
+  background: linear-gradient(180deg, rgba(242, 194, 48, 0.16), rgba(242, 194, 48, 0.04));
+  border: 1px solid rgba(242, 194, 48, 0.24);
+  color: var(--accent-2);
+  box-shadow: 0 0 20px -8px rgba(242, 194, 48, 0.5);
+}
+
+/* видеоблок рядом с советами — тем же стеклом */
+.s-finds {
+  padding: 16px; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.01));
+  box-shadow: 0 26px 55px -42px rgba(0, 0, 0, 0.95);
+}
+
+/* карточки гайдов: плашка ярче, картинка ближе на наведении */
+.s-card-tag { background: rgba(8, 10, 9, 0.72); border-color: rgba(242, 194, 48, 0.35); }
+.s-cards a:hover .s-card-img img { transform: scale(1.07); }
+
+/* вопросы */
+.s-faq { border-top: 1px solid rgba(255, 255, 255, 0.09); }
+.s-faq details { border-bottom: 1px solid rgba(255, 255, 255, 0.07); }
