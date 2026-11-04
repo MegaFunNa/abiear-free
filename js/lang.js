@@ -5,7 +5,7 @@
   let lang = new URLSearchParams(location.search).get("lang");
   try {
     if (ok(lang)) localStorage.setItem("merchant-ear.lang", lang);
-    else lang = localStorage.getItem("merchant-ear.lang");
+    else lang = localStorage.getItem("merchant-ear.lang") || "ru";
   } catch {}
   if (!ok(lang)) lang = /^(ru|uk|be|kk)\b/i.test(navigator.language || "") ? "ru" : "en";
   const root = document.documentElement;
