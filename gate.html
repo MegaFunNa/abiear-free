@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title data-en="Merchant Ear · Sign in">Merchant Ear · Вход</title>
+  <script src="js/lang.js"></script>
+  <meta name="theme-color" content="#0b0d0c">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 28 9v14l-12 7-12-7V9z' fill='%230b0d0c' stroke='%23f2c230' stroke-width='2.5'/%3E%3Cpath d='M10 13v6M14 10v12M18 12v8M22 14v4' stroke='%23f2c230' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Russo+One&display=swap">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/gate.css">
+</head>
+<body class="gate">
+  <main class="gate-box">
+    <button class="gate-lang" type="button" data-lang-switch>EN</button>
+    <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+    <div class="gate-brand">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2 28 9v14l-12 7-12-7V9z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><path d="M10 13v6M14 10v12M18 12v8M22 14v4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+      <span class="brand-name">Merchant<b>Ear</b></span>
+    </div>
+    <h1 id="title" data-en="Sign in with key">Вход по ключу</h1>
+    <p class="hint" id="lead" data-en="Enter the key you were given. The browser will remember it.">Введите ключ, который вам выдали. Браузер его запомнит.</p>
+
+    <form id="form" autocomplete="off" novalidate>
+      <label class="sr-only" for="key" data-en="Key">Ключ</label>
+      <input id="key" class="gate-input" name="key" inputmode="text" spellcheck="false"
+             placeholder="Любой ключ" autofocus>
+      <button class="btn primary lg wide" id="submit" type="submit">
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <span data-en="Sign in">Войти</span>
+      </button>
+      <p class="gate-msg" id="msg" role="alert" aria-live="assertive"></p>
+    </form>
+    <div class="gate-buy" id="buy">
+      <span data-en="No key?">Нет ключа?</span>
+    </div>
+    <button class="btn ghost wide gate-guide" type="button" data-guide>
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l12-7.5z"/></svg>
+      <span data-en="Video guide">Видеоинструкция</span>
+    </button>
+    <button class="gate-switch" id="logout" type="button" hidden data-en="Use another key">Войти с другим ключом</button>
+    <p class="gate-ver" id="ver"></p>
+  </main>
+  <script src="js/static-data.js"></script>
+  <script src="js/static-boot.js"></script>
+  <script src="js/gate-app.js"></script>
+  <script src="js/guide.js"></script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+/* Страница входа, поверх токенов style.css */
+
+body.gate { display: grid; place-items: center; padding: 24px 16px; }
+.gate-box {
+  position: relative; width: min(420px, 100%); padding: 32px 28px 28px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow);
+  display: flex; flex-direction: column; gap: 14px;
+}
+.gate-box .corner { position: absolute; width: 14px; height: 14px; border: 2px solid var(--accent); }
+.gate-box .corner.tl { top: -1px; left: -1px; border-right: 0; border-bottom: 0; border-top-left-radius: var(--r-lg); }
+.gate-box .corner.tr { top: -1px; right: -1px; border-left: 0; border-bottom: 0; border-top-right-radius: var(--r-lg); }
+.gate-box .corner.bl { bottom: -1px; left: -1px; border-right: 0; border-top: 0; border-bottom-left-radius: var(--r-lg); }
+.gate-box .corner.br { bottom: -1px; right: -1px; border-left: 0; border-top: 0; border-bottom-right-radius: var(--r-lg); }
+.gate-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.gate h1 { font: 400 22px/1.2 var(--font-display); }
+.gate .hint { font-size: 14px; }
+.gate form { display: flex; flex-direction: column; gap: 12px; margin-top: 6px; }
+.gate-input {
+  width: 100%; min-height: 52px; padding: 12px 14px; border-radius: var(--r-sm);
+  background: var(--surface-2); border: 1px solid var(--line-strong); color: var(--text);
+  font: 600 19px/1 var(--font-mono); letter-spacing: 0.08em; text-align: center; text-transform: uppercase;
+  transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+}
+.gate-input::placeholder { color: var(--text-3); opacity: 0.6; }
+.gate-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.gate-input.bad { border-color: var(--bad); box-shadow: 0 0 0 3px var(--bad-soft); animation: shake 320ms var(--ease); }
+.gate-msg { min-height: 20px; font-size: 13.5px; color: #ffb0a9; text-align: center; }
+.gate-msg.ok { color: var(--good); }
+.gate-buy { display: flex; flex-direction: column; gap: 8px; padding-top: 14px; border-top: 1px solid var(--line); text-align: center; font-size: 13.5px; color: var(--text-3); }
+.gate-buy[hidden] { display: none; }
+.gate-lang {
+  position: absolute; top: 12px; right: 12px; padding: 6px 8px; cursor: pointer;
+  background: none; border: 1px solid var(--line-strong); border-radius: var(--r-sm);
+  color: var(--text-2); font: 600 12px/1 var(--font-mono); letter-spacing: 0.04em;
+}
+.gate-lang:hover { color: var(--text); border-color: var(--accent); }
+.btn.gate-free { border-color: var(--accent); color: var(--accent); }
+.btn.gate-free:hover { background: var(--accent-soft); color: var(--accent-2); }
+.gate-guide .i { fill: currentColor; }
+.gate-tg .i { fill: currentColor; stroke: none; }
+.gate-switch { align-self: center; background: none; border: 0; color: var(--text-3); font-size: 13px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.gate-switch:hover { color: var(--text); }
+@keyframes shake { 25% { transform: translateX(-6px); } 50% { transform: translateX(5px); } 75% { transform: translateX(-3px); } }
+@media (prefers-reduced-motion: reduce) { .gate-input.bad { animation: none; } }
+.gate-ver { margin: 10px 0 0; text-align: center; font-size: 12px; color: var(--text-3); letter-spacing: .02em; }

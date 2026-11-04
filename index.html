@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-en="Merchant Ear: what's in the merchant cargo by sound · Arena Breakout: Infinite">Merchant Ear — что в грузе торговца по звуку · Arena Breakout: Infinite</title>
+  <script src="js/lang.js"></script>
+  <meta name="description" data-en-content="Merchant Ear listens to Arena Breakout: Infinite, recognizes the Field Merchant cargo sound and shows which items are inside, their odds and payback. Runs in the browser, nothing to install." content="Merchant Ear слушает Arena Breakout: Infinite, узнаёт звук груза Field Merchant и показывает, какие предметы внутри, их шансы и окупаемость. Работает в браузере, без установки.">
+  <meta name="theme-color" content="#0b0d0c">
+  <meta property="og:title" content="Merchant Ear — что в грузе по звуку">
+  <meta property="og:description" content="Распознаёт предмет в грузе Field Merchant по звуку и считает шансы и окупаемость.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 28 9v14l-12 7-12-7V9z' fill='%230b0d0c' stroke='%23f2c230' stroke-width='2.5'/%3E%3Cpath d='M10 13v6M14 10v12M18 12v8M22 14v4' stroke='%23f2c230' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Russo+One&display=swap">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Иконки (Lucide, ISC) — используются и в разметке, и в JS через <use href="#i-…"> -->
+  <svg id="sprite" width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-logo" viewBox="0 0 32 32"><path d="M16 2 28 9v14l-12 7-12-7V9z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><path d="M10 13v6M14 10v12M18 12v8M22 14v4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+      <symbol id="i-wave" viewBox="0 0 24 24"><path d="M2 10v3M6 6v11M10 3v18M14 8v7M18 5v13M22 10v3"/></symbol>
+      <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1.5"/></symbol>
+      <symbol id="i-pip" viewBox="0 0 24 24"><path d="M21 9V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v10c0 1.1.9 2 2 2h4"/><rect width="10" height="7" x="12" y="13" rx="2"/></symbol>
+      <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z"/></symbol>
+      <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+      <symbol id="i-map" viewBox="0 0 24 24"><path d="M14.1 5.55a2 2 0 0 0 1.8 0l3.65-1.83a1 1 0 0 1 1.45.9v12.76a1 1 0 0 1-.55.9l-4.55 2.27a2 2 0 0 1-1.8 0l-4.2-2.1a2 2 0 0 0-1.8 0l-3.65 1.83A1 1 0 0 1 3 19.38V6.62a1 1 0 0 1 .55-.9l4.55-2.27a2 2 0 0 1 1.8 0z"/><path d="M15 5.76v15M9 3.24v15"/></symbol>
+      <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+      <symbol id="i-box" viewBox="0 0 24 24"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12M3.3 7l7.7 4.73a2 2 0 0 0 2 0L20.7 7"/></symbol>
+      <symbol id="i-trend" viewBox="0 0 24 24"><path d="M22 7 13.5 15.5l-5-5L2 17"/><path d="M16 7h6v6"/></symbol>
+      <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+      <symbol id="i-plug" viewBox="0 0 24 24"><path d="M12 22v-5M9 8V2M15 8V2M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8z"/></symbol>
+      <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4"/></symbol>
+      <symbol id="i-library" viewBox="0 0 24 24"><path d="M21 15V6M18.5 18a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM12 12H3M16 6H3M12 18H3"/></symbol>
+      <symbol id="i-activity" viewBox="0 0 24 24"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></symbol>
+      <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></symbol>
+      <symbol id="i-monitor" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8M12 17v4"/></symbol>
+      <symbol id="i-reset" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5"/></symbol>
+      <symbol id="i-rain" viewBox="0 0 24 24"><path d="M4 14.9A7 7 0 1 1 15.7 8h1.8a4.5 4.5 0 0 1 2.5 8.2M16 14v6M8 14v6M12 16v6"/></symbol>
+      <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+      <symbol id="i-zap" viewBox="0 0 24 24"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></symbol>
+      <symbol id="i-flask" viewBox="0 0 24 24"><path d="M10 2v7.53a2 2 0 0 1-.21.9L4.72 20.55a1 1 0 0 0 .9 1.45h12.76a1 1 0 0 0 .9-1.45l-5.07-10.13A2 2 0 0 1 14 9.53V2M8.5 2h7M7 16h10"/></symbol>
+      <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></symbol>
+      <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01"/></symbol>
+      <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></symbol>
+      <symbol id="i-tg" viewBox="0 0 24 24"><path d="M21.2 4.1 2.9 11.2c-1.2.5-1.2 1.2-.2 1.5l4.7 1.5 1.8 5.5c.2.6.4.8.8.8s.6-.2.9-.5l2.3-2.2 4.7 3.5c.9.5 1.5.2 1.7-.8l3.1-14.6c.3-1.3-.5-1.8-1.5-1.3zM9.6 14.4l8.6-5.4c.4-.3.8-.1.5.2l-7.1 6.4-.3 3.2z"/></symbol>
+      <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></symbol>
+    </defs>
+  </svg>
+
+
+  <header class="nav">
+    <div class="nav-inner">
+      <a class="brand" href="#top" aria-label="Merchant Ear — наверх" data-en-aria-label="Merchant Ear: top">
+        <svg class="brand-mark"><use href="#i-logo"/></svg>
+        <span class="brand-name">Merchant<b>Ear</b></span>
+      </a>
+      <button class="btn small ghost nav-guide" type="button" data-guide title="Видеоинструкция" data-en-title="Video guide"><svg class="i"><use href="#i-play"/></svg><span data-en="Guide">Инструкция</span></button>
+      <button class="btn small ghost nav-lang" type="button" data-lang-switch>EN</button>
+      <button class="btn small ghost nav-logout" id="logoutBtn" title="Выйти — на этом устройстве снова понадобится ключ" aria-label="Выйти" data-en-title="Log out: this device will need the key again" data-en-aria-label="Log out"><svg class="i"><use href="#i-logout"/></svg></button>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="console" id="app" aria-label="Приложение" data-en-aria-label="App">
+      <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+
+      <div class="console-bar">
+        <h2 class="console-title"><svg class="i"><use href="#i-target"/></svg><span data-en="Cargo analysis">Анализ груза</span></h2>
+        <div class="console-actions">
+          <button class="btn primary map-btn" id="mapBtn" title="Карта и режим — от них зависит, что лежит в грузах" data-en-title="Map and mode decide what the cargo holds"><svg class="i"><use href="#i-map"/></svg><span data-en="Pick map">Выбрать карту</span></button>
+          <button class="btn ghost" id="pip" hidden disabled title="Сначала выберите карту" data-en-title="Pick a map first"><svg class="i"><use href="#i-pip"/></svg><span data-en="Over game">Поверх игры</span></button>
+          <button class="btn primary" id="listen"><svg class="i"><use href="#i-wave"/></svg><span data-en="Listen to game">Слушать игру</span></button>
+          <button class="btn danger" id="stop" hidden><svg class="i"><use href="#i-stop"/></svg><span data-en="Stop">Стоп</span></button>
+        </div>
+      </div>
+
+      <button class="pip-hint" id="pipHint" type="button" hidden>
+        <svg class="i"><use href="#i-pip"/></svg>
+        <span><b data-en="Open overlay window">Открыть окно поверх игры</b> <span data-en="The browser blocked it, one click needed">Браузер не дал открыть его сам, нужен один клик</span></span>
+      </button>
+
+      <div class="capture-error" id="captureError" role="alert" hidden></div>
+
+      <div class="scope" id="scopeBox">
+        <canvas id="scope" aria-hidden="true"></canvas>
+        <div class="scope-legend" aria-hidden="true">
+          <span><i class="lg-level"></i><span data-en="game audio">звук игры</span></span>
+          <span><i class="lg-thr"></i><span data-en="threshold">порог</span></span>
+          <span><i class="lg-hit"></i><span data-en="trigger">срабатывание</span></span>
+        </div>
+        <div class="scope-idle" id="scopeIdle" data-en="No signal">Нет сигнала</div>
+      </div>
+
+      <div class="wind-bar">
+        <span class="wind-label" data-en="Wind">Ветер</span>
+        <div class="wind-modes" role="radiogroup" aria-label="Режим ветра" data-en-aria-label="Wind mode">
+          <button class="chip" type="button" role="radio" data-wind="auto" title="Порог снижается сам, когда фон громче обычного" data-en-title="Threshold drops by itself when background is louder than usual" data-en="Auto">Авто</button>
+          <button class="chip" type="button" role="radio" data-wind="on" title="Порог всегда снижен на 3 дБ" data-en-title="Threshold always 3 dB lower" data-en="On">Вкл</button>
+          <button class="chip" type="button" role="radio" data-wind="off" title="Как раньше, порог не снижается" data-en-title="Threshold never drops" data-en="Off">Выкл</button>
+        </div>
+        <span class="wind-state" id="windState"></span>
+      </div>
+
+      <div class="panel">
+        <div class="now-card">
+          <div id="now" class="now" aria-live="polite"></div>
+          <div id="quiz"></div>
+          <div class="summary" id="summary"></div>
+          <div class="filter-note" id="filterNote" hidden></div>
+        </div>
+        <section class="grid-card" id="gridBox" hidden aria-label="Сетка торговца" data-en-aria-label="Merchant grid">
+          <div class="grid-head">
+            <h3 data-en="Merchant grid">Сетка торговца</h3>
+            <span class="grid-note" id="gridNote"></span>
+            <button class="btn small ghost" id="gridReset" title="Забыть сетку и все звуки" data-en-title="Forget the grid and all sounds" data-en="Reset">Сбросить</button>
+          </div>
+          <div class="mgrid" id="grid"></div>
+        </section>
+        <div id="results" class="results"></div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <dialog class="map-dialog" id="mapDialog" aria-labelledby="mapDialogTitle">
+    <div class="map-dialog-head">
+      <button class="btn ghost small" id="mapBack" hidden><svg class="i"><use href="#i-chevron"/></svg><span data-en="Back">Назад</span></button>
+      <h2 id="mapDialogTitle" data-en="Pick a map">Выберите карту</h2>
+      <button class="btn ghost small icon-only" id="mapClose" aria-label="Закрыть" data-en-aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button>
+    </div>
+    <div id="mapDialogBody"></div>
+  </dialog>
+
+  <script src="js/static-data.js"></script>
+  <script src="js/static-boot.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/logout.js"></script>
+  <script src="js/guide.js"></script>
+</body>
+</html>
