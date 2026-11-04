@@ -206,3 +206,14 @@ a.s-map:hover { border-color: var(--accent-line); transform: translateY(-2px); c
 @media (prefers-reduced-motion: reduce) {
   .s-map, .s-cards a, .s-card-img img, .s-card-more .i, .s-faq summary::after { transition: none; }
 }
+
+/* ---------- добрано из их style.css: плашка над заголовком героя ---------- */
+.eyebrow { display: inline-flex; align-items: center; gap: 8px; font: 600 12px/1 var(--font-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
+.eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+
+/* ---------- блок видеоинструкции вместо их живой ленты находок ---------- */
+.s-finds { display: flex; flex-direction: column; gap: 14px; }
+.s-finds .s-h2 { margin: 0; font-size: 20px; }
+.guide-video { width: 100%; aspect-ratio: 16 / 9; background: #050706; border: 1px solid var(--line); border-radius: 12px; object-fit: cover; }
+.s-finds-note { margin: 0; font-size: 13px; line-height: 1.55; color: var(--text-dim, #9aa3a0); }
+@media (max-width: 900px) { .s-finds { padding-top: 28px; border-top: 1px solid var(--line); } }

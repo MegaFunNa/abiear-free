@@ -1,55 +1,141 @@
 <!doctype html>
-<html lang="ru">
+<html lang="ru" translate="no">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
-  <title data-en="ABI Merchant · Sign in">ABI Merchant · Вход</title>
-  <script src="js/lang.js"></script>
+  <title data-en="ABI Merchant — what's in the merchant cargo by sound">ABI Merchant — что в грузе торговца по звуку</title>
+  <meta name="description" content="ABI Merchant слушает игру и по звуку груза показывает, какие предметы внутри у полевого торговца в Arena Breakout: Infinite. Работает в браузере, ключ любой.">
   <meta name="theme-color" content="#0b0d0c">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 28 9v14l-12 7-12-7V9z' fill='%230b0d0c' stroke='%23f2c230' stroke-width='2.5'/%3E%3Cpath d='M10 13v6M14 10v12M18 12v8M22 14v4' stroke='%23f2c230' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="icon" href="img/site/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="img/site/icon-96.png" sizes="96x96" type="image/png">
+  <link rel="apple-touch-icon" href="img/site/apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Russo+One&display=swap">
   <link rel="stylesheet" href="css/style.css">
-  <link rel="stylesheet" href="css/gate.css">
   <link rel="stylesheet" href="css/site.css">
+  <link rel="stylesheet" href="css/gate.css">
+  <script src="js/lang.js"></script>
 </head>
-<body class="gate">
-  <header class="s-nav"><div class="s-nav-in">
-    <a class="brand" href="#" aria-label="ABI Merchant — наверх" data-en-aria-label="ABI Merchant: top">
-      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2 28 9v14l-12 7-12-7V9z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><path d="M10 13v6M14 10v12M18 12v8M22 14v4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
-      <span class="brand-name">ABI <b>Merchant</b></span>
-    </a>
-    <nav class="s-links" aria-label="Инструкция" data-en-aria-label="Guide">
-      <a href="#" data-guide data-en="Video guide">Видеоинструкция</a>
-    </nav>
-    <button class="s-lang" type="button" data-lang-switch>EN</button>
-  </div></header>
-  <main class="gate-box">
-    <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
-    <h1 id="title" data-en="Sign in with key">Вход по ключу</h1>
-    <p class="hint" id="lead" data-en="Enter the key you were given. The browser will remember it.">Введите ключ, который вам выдали. Браузер его запомнит.</p>
-
-    <form id="form" autocomplete="off" novalidate>
-      <label class="sr-only" for="key" data-en="Key">Ключ</label>
-      <input id="key" class="gate-input" name="key" inputmode="text" spellcheck="false"
-             placeholder="Любой ключ" autofocus>
-      <button class="btn primary lg wide" id="submit" type="submit">
-        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        <span data-en="Sign in">Войти</span>
+<body class="site s-home">
+<header class="s-nav"><div class="s-nav-in">
+  <a class="brand" href="gate.html"><svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2 28 9v14l-12 7-12-7V9z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><path d="M10 13v6M14 10v12M18 12v8M22 14v4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg><span class="brand-name">ABI <b>Merchant</b></span></a>
+  <nav class="s-links" aria-label="Гайды" data-en-aria-label="Guides">
+    <a href="pages/gajd-po-torgovcu.html" data-en="Guides" data-en="Guides">Гайды</a>
+    <a href="#" data-guide data-en="Video guide">Видеоинструкция</a>
+  </nav>
+  <button class="s-lang" type="button" data-lang-switch>EN</button>
+  <a class="btn small primary s-signin" href="#signin"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span data-en="Sign in with key">Вход по ключу</span></a>
+</div></header>
+<main class="s-main">
+<section class="s-hero">
+  <div class="s-hero-copy">
+    <span class="eyebrow"><span class="dot"></span>Arena Breakout: Infinite · ABI Merchant</span>
+    <h1 data-en="What's in the merchant cargo — visible before you buy">Что в грузе торговца, видно <em>до покупки</em></h1>
+    <p class="s-lead" data-en="ABI Merchant listens to the game and, from the cargo sound, shows which items are inside the Field Merchant's bag, red odds and payback.">ABI Merchant слушает игру и по звуку груза показывает, какие предметы внутри у полевого торговца, шансы на красное и окупаемость.</p>
+    <div class="s-cta">
+      <button class="btn primary lg" type="button" data-guide>
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l12-7.5z"/></svg>
+        <span data-en="Video guide">Видеоинструкция</span>
       </button>
-      <p class="gate-msg" id="msg" role="alert" aria-live="assertive"></p>
-    </form>
-    <div class="gate-buy" id="buy">
-      <span data-en="No key? Just enter any!">Нет ключа? Введи любой!</span>
+      <a class="btn ghost lg" href="#steps" data-en="How it works">Как это работает</a>
     </div>
-    <button class="gate-switch" id="logout" type="button" hidden data-en="Use another key">Войти с другим ключом</button>
-    <p class="gate-ver" id="ver"></p>
-  </main>
-  <script src="js/static-data.js"></script>
+    <p class="s-note"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg data-en="Chrome or Edge on PC">Chrome или Edge на ПК</p>
+  </div>
+  <div class="s-key" id="signin">
+  <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+  <h2 id="title" data-en="Sign in with key">Вход по ключу</h2>
+  <p class="hint" id="lead" data-en="Enter any key — the browser will remember it.">Введите любой ключ — браузер его запомнит.</p>
+  <form id="form" autocomplete="off" novalidate>
+    <label class="sr-only" for="key" data-en="Key">Ключ</label>
+    <input id="key" class="gate-input" name="key" inputmode="text" spellcheck="false" autocapitalize="characters" placeholder="Любой ключ" maxlength="24">
+    <button class="btn primary lg wide" id="submit" type="submit"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span data-en="Sign in">Войти</span></button>
+    <p class="gate-msg" id="msg" role="alert" aria-live="assertive"></p>
+  </form>
+  <div class="s-key-buy" id="buy"><span data-en="No key? Just enter any!">Нет ключа? Введи любой!</span></div>
+  <button class="gate-switch" id="logout" type="button" hidden data-en="Use another key">Войти с другим ключом</button>
+  <p class="gate-ver" id="ver"></p>
+</div>
+</section>
+
+<section class="s-sec" aria-labelledby="steps">
+  <h2 class="s-h2" id="steps" data-en="Getting started">Как начать</h2>
+  <ol class="s-steps"><li><span class="s-num">01</span><h3 data-en="Enter any key">Введите любой ключ</h3><p data-en="Any non-empty string works — no sign-up and no payment.">Подойдёт любая непустая строка: без регистрации и оплаты.</p></li><li><span class="s-num">02</span><h3 data-en="Open the site on a PC">Откройте сайт на ПК</h3><p data-en="In Chrome or Edge. Nothing to install.">В Chrome или Edge. Ничего устанавливать не нужно.</p></li><li><span class="s-num">03</span><h3 data-en="Pick the map and mode">Выберите карту и режим</h3><p data-en="Same as your raid. Press “Listen to the game” and pick the game window.">Те же, что у вашего рейда. Нажмите «Слушать игру» и выберите окно игры.</p></li><li><span class="s-num">04</span><h3 data-en="Drag the merchant's cargo">Двигайте груз у торговца</h3><p data-en="Hover the cursor, wait for the price, drag and drop. The site shows what's inside.">Наведите курсор, дождитесь цены, перетащите и положите. Сайт покажет, что внутри.</p></li></ol>
+</section>
+
+<section class="s-sec" aria-labelledby="maps">
+  <div class="s-sec-head"><h2 class="s-h2" id="maps" data-en="Maps and modes">Карты и режимы</h2><p data-en="Odds are computed per map and mode.">Шансы считаются отдельно для каждой карты и режима.</p></div>
+  <ul class="s-maps"><li><a class="s-map" href="pages/torgovec/farm.html"><img src="img/maps/farm-lockdown-sm.webp" alt="" loading="lazy" width="480" height="160">
+      <span class="s-map-body"><span class="s-map-name" data-en="Farm">Ферма</span><ul class="s-modes"><li class="m-white" data-en="White">Белая</li><li class="m-yellow" data-en="Yellow">Жёлтая</li><li class="m-red" data-en="Red">Красная</li></ul></span>
+      </a></li><li><a class="s-map" href="pages/torgovec/valley.html"><img src="img/maps/valley-lockdown-sm.webp" alt="" loading="lazy" width="480" height="160">
+      <span class="s-map-body"><span class="s-map-name" data-en="Valley">Долина</span><ul class="s-modes"><li class="m-white">Белая</li><li class="m-yellow">Жёлтая</li></ul></span>
+      </a></li><li><a class="s-map" href="pages/torgovec/northridge.html"><img src="img/maps/northridge-lockdown-sm.webp" alt="" loading="lazy" width="480" height="160">
+      <span class="s-map-body"><span class="s-map-name" data-en="Northridge">Нортридж</span><ul class="s-modes"><li class="m-yellow">Жёлтая</li><li class="m-red">Красная</li></ul></span>
+      </a></li><li><a class="s-map" href="pages/torgovec/armory.html"><img src="img/maps/armory-lockdown-sm.webp" alt="" loading="lazy" width="480" height="160">
+      <span class="s-map-body"><span class="s-map-name" data-en="Armory">Арсенал</span><ul class="s-modes"><li class="m-yellow">Жёлтая</li><li class="m-red">Красная</li></ul></span>
+      </a></li><li><a class="s-map" href="pages/torgovec/tvstation.html"><img src="img/maps/tvstation-lockdown-sm.webp" alt="" loading="lazy" width="480" height="160">
+      <span class="s-map-body"><span class="s-map-name" data-en="TV Station">Телецентр</span><ul class="s-modes"><li class="m-yellow">Жёлтая</li><li class="m-red">Красная</li></ul></span>
+      </a></li><li><a class="s-map" href="pages/torgovec/airport.html"><img src="img/maps/airport-lockdown-sm.webp" alt="" loading="lazy" width="480" height="160">
+      <span class="s-map-body"><span class="s-map-name" data-en="Airport">Аэропорт</span><ul class="s-modes"><li class="m-yellow">Жёлтая</li><li class="m-red">Красная</li></ul></span>
+      </a></li></ul>
+</section>
+
+<section class="s-sec s-split">
+  <div>
+    <h2 class="s-h2" data-en="Before you play">Перед игрой</h2>
+    <ul class="s-tips"><li><span class="s-tip-ic"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span><div><h3 data-en="Game window, not the whole screen">Окно игры, а не весь экран</h3><p>Выбирайте окно <b>Arena Breakout: Infinite</b>. При показе всего экрана в звук попадут Discord и музыка.</p></div></li><li><span class="s-tip-ic"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 10v3M6 6v11M10 3v18M14 8v7M18 5v13M22 10v3"/></svg></span><div><h3 data-en="No equalizer">Без эквалайзера</h3><p>Эквалайзер, <b>Sonar</b>, <b>Razer THX</b>, <b>Dolby Atmos</b>, <b>Windows Sonic</b> и <b>Nahimic</b> меняют звук. Выключите их на время игры.</p></div></li><li><span class="s-tip-ic"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4"/></svg></span><div><h3 data-en="No NVIDIA filters">Без фильтров NVIDIA</h3><p>Фильтры игры <b>NVIDIA</b> (Alt+F3) мешают сайту. Выключите их на время игры.</p></div></li><li><span class="s-tip-ic"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3 3 6v15l6-3 6 3 6-3V3l-6 3z"/><path d="M9 3v15M15 6v15"/></svg></span><div><h3 data-en="Same map and mode">Та же карта и режим</h3><p>Выбирайте карту и режим своего рейда. С другой картой результат будет неверным.</p></div></li><li><span class="s-tip-ic"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/></svg></span><div><h3 data-en="Drag the cargo calmly">Двигайте груз спокойно</h3><p>Наведите курсор, дождитесь цены, перетащите и положите. Без двойных кликов.</p></div></li><li><span class="s-tip-ic"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/></svg></span><div><h3 data-en="Browser">Браузер</h3><p><b>Chrome</b> или <b>Edge</b> на ПК. В Firefox сайт не работает.</p></div></li></ul>
+  </div>
+  <section class="s-finds" aria-label="Видеоинструкция">
+    <h2 class="s-h2" data-en="Video guide">Видеоинструкция</h2>
+    <video class="guide-video" controls playsinline preload="none" poster="video/poster-ru.jpg"
+           data-src-ru="video/instruction-ru.mp4" data-src-en="video/instruction-en.mp4"></video>
+    <p class="s-finds-note" data-en="Two minutes: how to pick the map, share the game sound and read the result.">
+      Две минуты: как выбрать карту, поделиться звуком игры и читать результат.</p>
+  </section>
+</section>
+
+<section class="s-sec" aria-labelledby="guides">
+  <h2 class="s-h2" id="guides" data-en="Guides">Гайды</h2>
+  <ul class="s-cards"><li><a href="pages/gajd-po-torgovcu.html">
+    <span class="s-card-img"><img src="img/site/covers/hub.webp" alt="" loading="lazy" width="960" height="400"><span class="s-card-tag"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3 3 6v15l6-3 6 3 6-3V3l-6 3z"/><path d="M9 3v15M15 6v15"/></svg data-en="Guide">Гайд</span></span>
+    <div class="s-card-body"><h3 data-en="Field Merchant guide">Гайд по полевому торговцу</h3><p data-en="Maps, modes, discounts and how many cargos you can buy per raid.">Карты, режимы, скидки и сколько грузов можно купить за рейд.</p><span class="s-card-more" data-en="Read">Читать<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></div>
+  </a></li><li><a href="pages/kak-najti-torgovca.html">
+    <span class="s-card-img"><img src="img/site/covers/find.webp" alt="" loading="lazy" width="960" height="400"><span class="s-card-tag"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg>Гайд</span></span>
+    <div class="s-card-body"><h3 data-en="How to find the Field Merchant">Как найти полевого торговца</h3><p data-en="Every spawn spot of the merchant on all six maps.">Все места, где появляется торговец, на каждой из шести карт.</p><span class="s-card-more" data-en="Read">Читать<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></div>
+  </a></li><li><a href="pages/krasnoe-u-torgovca.html">
+    <span class="s-card-img"><img src="img/site/covers/red.webp" alt="" loading="lazy" width="960" height="400"><span class="s-card-tag"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/></svg>Гайд</span></span>
+    <div class="s-card-body"><h3 data-en="How to find reds at the merchant">Как найти красное у торговца</h3><p data-en="What drives the red chance and how to know what's inside before buying.">От чего зависит шанс на красное и как узнать, что в грузе, до покупки.</p><span class="s-card-more" data-en="Read">Читать<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></div>
+  </a></li></ul>
+</section>
+
+<section class="s-sec" aria-labelledby="faq">
+  <h2 class="s-h2" id="faq" data-en="FAQ">Вопросы</h2>
+  <div class="s-faq"><details><summary data-en="Anything to download?">Нужно что-то скачивать?</summary><p data-en="No. It runs in Chrome or Edge on a PC. Firefox is not supported.">Нет. Сайт работает в браузере Chrome или Edge на ПК. В Firefox не работает.</p></details><details><summary data-en="Does it work on a phone?">Работает на телефоне?</summary><p data-en="No. Listening to the game and reading the cargo sound works on a PC in Chrome or Edge.">Нет. Слушать игру и разбирать звук груза можно на ПК в Chrome или Edge.</p></details><details><summary data-en="Do I need a key?">Нужен ли ключ?</summary><p data-en="No. Any non-empty string works — type anything and sign in.">Нет. Подойдёт любая непустая строка — введите что угодно и работайте.</p></details><details><summary data-en="How much does it cost?">Сколько это стоит?</summary><p data-en="Nothing. Everything is computed in your browser — no server, no payment.">Нисколько. Всё считается в вашем браузере: без сервера и без оплаты.</p></details><details><summary data-en="Which maps are supported?">Какие карты есть?</summary><p data-en="Farm, Valley, Northridge, Armory, TV Station and Airport.">Ферма, Долина, Нортридж, Арсенал, Телецентр и Аэропорт.</p></details></div>
+</section>
+</main>
+<footer class="s-foot"><div class="s-foot-in">
+  <div class="s-foot-brand"><a class="brand" href="gate.html"><svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2 28 9v14l-12 7-12-7V9z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><path d="M10 13v6M14 10v12M18 12v8M22 14v4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg><span class="brand-name">ABI <b>Merchant</b></span></a><p class="s-foot-domain">megafunna.github.io/abiear-free</p></div>
+  <nav class="s-foot-col" aria-label="Гайды"><h2>Гайды</h2><div class="s-foot-guides"><a href="pages/gajd-po-torgovcu.html">Гайд по полевому торговцу</a><a href="pages/kak-najti-torgovca.html">Как найти полевого торговца</a><a href="pages/krasnoe-u-torgovca.html">Как найти красное у торговца</a><a href="pages/torgovec/farm.html">Где торговец на Ферме</a><a href="pages/torgovec/valley.html">Где торговец на Долине</a><a href="pages/torgovec/northridge.html">Где торговец на Нортридже</a><a href="pages/torgovec/armory.html">Где торговец на Арсенале</a><a href="pages/torgovec/tvstation.html">Где торговец на Телецентре</a><a href="pages/torgovec/airport.html">Где торговец в Аэропорту</a></div></nav>
+  <nav class="s-foot-col" aria-label="ABI Merchant"><h2>ABI Merchant</h2>
+    <a href="#" data-guide data-en="Video guide">Видеоинструкция</a>
+    <a href="#signin" data-en="Sign in with key">Вход по ключу</a>
+    <a href="#" data-lang-switch>English</a>
+  </nav>
+</div></footer>
+<script src="js/static-data.js"></script>
   <script src="js/static-boot.js"></script>
   <script src="js/gate-app.js"></script>
-  <script src="js/guide.js"></script>
+<script src="js/guide.js"></script>
+<script>
+  // язык ролика в блоке видеоинструкции
+  (() => {
+    const v = document.querySelector(".guide-video");
+    if (!v) return;
+    const en = document.documentElement.lang === "en";
+    v.src = en ? v.dataset.srcEn : v.dataset.srcRu;
+    v.poster = "video/poster-" + (en ? "en" : "ru") + ".jpg";
+  })();
+</script>
 </body>
 </html>
