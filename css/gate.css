@@ -1,6 +1,9 @@
 /* Страница входа, поверх токенов style.css */
 
-body.gate { display: grid; place-items: center; padding: 24px 16px; }
+/* Шапка сайта (как у abiear.ru) + коробка входа по центру оставшегося места. */
+body.gate { display: flex; flex-direction: column; min-height: 100vh; padding: 0 16px 24px; }
+body.gate > .s-nav { margin: 0 -16px; }
+body.gate > .gate-box { margin: auto; }
 .gate-box {
   position: relative; width: min(420px, 100%); padding: 32px 28px 28px;
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow);
