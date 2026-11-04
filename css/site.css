@@ -252,3 +252,7 @@ body.space .s-nav { background: rgba(6, 8, 13, 0.82); }
 .space-stars { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 body.space .s-cta .btn.primary { box-shadow: 0 0 0 1px rgba(242, 194, 48, 0.25), 0 0 30px rgba(242, 194, 48, 0.18); }
 @media (prefers-reduced-motion: reduce) { .space-neb, .space-grid { animation: none; } }
+
+/* строка версии не должна раздувать коробку входа — прижимаем к низу */
+.s-key .gate-ver { position: absolute; right: 18px; bottom: 11px; margin: 0;
+  font: 600 10px/1 var(--font-mono); letter-spacing: 0.04em; color: var(--text-2); opacity: 0.5; }
