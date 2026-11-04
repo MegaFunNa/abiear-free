@@ -223,7 +223,7 @@ a.s-map:hover { border-color: var(--accent-line); transform: translateY(-2px); c
 button.s-lang { background: none; border: 0; cursor: pointer; font-family: var(--font-mono); }
 
 /* приписка «Unlimited» к логотипу */
-.brand-suffix { display: inline-block; margin-left: 8px; padding: 3px 7px 2px; border: 1px solid var(--accent-line); border-radius: 999px;
+.brand-suffix { display: inline-block; margin-left: 6px; padding: 3px 7px 2px; border: 1px solid var(--accent-line); border-radius: 999px;
   font: 600 9.5px/1 var(--font-mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent);
   background: var(--accent-soft); vertical-align: 3px; }
 

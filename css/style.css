@@ -831,3 +831,8 @@ body.mini .category-prob b { font-size: 14px; }
   font-size: clamp(28px, calc(var(--gcell) * 0.78), 62px);
   filter: drop-shadow(0 0 12px rgba(255, 70, 70, 0.55)) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.8));
 }
+
+/* приписка «Unlimited» к логотипу (в консоли site.css не загружается — правило нужно и здесь) */
+.brand-suffix { display: inline-block; margin-left: 6px; padding: 3px 7px 2px; border: 1px solid var(--accent-line); border-radius: 999px;
+  font: 600 9.5px/1 var(--font-mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent);
+  background: var(--accent-soft); vertical-align: 3px; }
