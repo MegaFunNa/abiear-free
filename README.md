@@ -1,10 +1,10 @@
 <div align="center">
 
-# 🎧 ABI Merchant
+# 🎧 ABI Merchant Unlimited
 
 **Груз торговца: слышит звук, читает размер и цену — и сразу говорит, брать или нет**
 
-[![Открыть ABI Merchant](https://img.shields.io/badge/▶_Открыть_ABI_Merchant-2ea043?style=for-the-badge&logo=github&logoColor=white)](https://megafunna.github.io/abiear-free/)
+[![Открыть ABI Merchant Unlimited](https://img.shields.io/badge/▶_Открыть_ABI_Merchant-2ea043?style=for-the-badge&logo=github&logoColor=white)](https://megafunna.github.io/abiear-free/)
 
 **Ничего качать и ставить не нужно — нажал кнопку и работаешь.** 🕹️
 Бесплатно, без регистрации и без пробного режима.
@@ -20,7 +20,7 @@
 ## 🎮 Что это такое
 
 В **Arena Breakout: Infinite** полевой торговец продаёт закрытые грузы. Что внутри — неизвестно.
-ABI Merchant разбирает каждый груз **по трём признакам сразу** и сам сводит их в ответ:
+ABI Merchant Unlimited разбирает каждый груз **по трём признакам сразу** и сам сводит их в ответ:
 
 | | Что берём | Откуда |
 |:---:|---|---|
@@ -132,7 +132,7 @@ ABI Merchant разбирает каждый груз **по трём призн
 
 ## ⚖️ Чем лучше обычных определителей
 
-| | 😴 Обычный сайт | 🎧 ABI Merchant |
+| | 😴 Обычный сайт | 🎧 ABI Merchant Unlimited |
 |---|---|---|
 | Звук | узнаёшь на слух, кликаешь кнопку | **слышит сам** |
 | Размер и цена | вводишь руками | **читает с экрана** |

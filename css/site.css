@@ -221,3 +221,34 @@ a.s-map:hover { border-color: var(--accent-line); transform: translateY(-2px); c
 /* переключатель языка — <button>, а их .s-lang рассчитано на ссылку:
    без сброса браузер рисует серую кнопку поверх их стиля */
 button.s-lang { background: none; border: 0; cursor: pointer; font-family: var(--font-mono); }
+
+/* приписка «Unlimited» к логотипу */
+.brand-suffix { display: inline-block; margin-left: 8px; padding: 3px 7px 2px; border: 1px solid var(--accent-line); border-radius: 999px;
+  font: 600 9.5px/1 var(--font-mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent);
+  background: var(--accent-soft); vertical-align: 3px; }
+
+/* ---------- космический фон страницы входа (только body.space) ---------- */
+body.space { background: #05070b; }
+body.space .s-nav { background: rgba(6, 8, 13, 0.82); }
+.space-bg { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none;
+  background: radial-gradient(120% 90% at 50% -10%, #0d1526 0%, #070a11 45%, #04060a 100%); }
+.space-neb { position: absolute; border-radius: 50%; filter: blur(70px); opacity: 0.5; mix-blend-mode: screen; }
+.space-neb.n1 { width: 46vw; height: 46vw; left: -8vw;  top: -6vw;
+  background: radial-gradient(circle, rgba(88, 140, 255, 0.55), transparent 65%);
+  animation: neb-drift 46s ease-in-out infinite alternate; }
+.space-neb.n2 { width: 38vw; height: 38vw; right: -6vw; top: 16vh;
+  background: radial-gradient(circle, rgba(242, 194, 48, 0.30), transparent 65%);
+  animation: neb-drift 58s ease-in-out infinite alternate-reverse; }
+.space-neb.n3 { width: 54vw; height: 54vw; left: 20vw;  bottom: -24vw;
+  background: radial-gradient(circle, rgba(122, 82, 220, 0.34), transparent 65%);
+  animation: neb-drift 70s ease-in-out infinite alternate; }
+@keyframes neb-drift { from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(4vw, 3vh, 0) scale(1.12); } }
+.space-grid { position: absolute; inset: -20%;
+  background: linear-gradient(rgba(130, 165, 255, 0.07) 1px, transparent 1px) 0 0 / 46px 46px,
+              linear-gradient(90deg, rgba(130, 165, 255, 0.07) 1px, transparent 1px) 0 0 / 46px 46px;
+  animation: grid-drift 60s linear infinite; }
+@keyframes grid-drift { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(46px, 46px, 0); } }
+.space-stars { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+body.space .s-cta .btn.primary { box-shadow: 0 0 0 1px rgba(242, 194, 48, 0.25), 0 0 30px rgba(242, 194, 48, 0.18); }
+@media (prefers-reduced-motion: reduce) { .space-neb, .space-grid { animation: none; } }

@@ -5965,7 +5965,7 @@ async function openPip({ quiet = false } = {}) {
     link.href = new URL("css/style.css", location.href).href;
     const fonts = document.querySelector("link[href*='fonts.googleapis.com/css2']").cloneNode();
     pip.document.head.append(fonts, link);
-    pip.document.title = "ABI Merchant";
+    pip.document.title = "ABI Merchant Unlimited";
     pip.document.documentElement.lang = document.documentElement.lang;
     pip.document.body.className = "mini";
     pip.document.addEventListener("click", onQuizClick);
