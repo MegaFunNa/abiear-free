@@ -624,34 +624,88 @@ var init_ncc_detector = __esm({
 
 // js/i18n.js
 var root = document.documentElement;
-var lang = root.lang === "en" ? "en" : "ru";
-var isRu = lang === "ru";
-var locale = isRu ? "ru-RU" : "en-US";
-var L = (ru, en) => isRu ? ru : en;
+var current = root.lang === "en" ? "en" : "ru";
+var isRu = current === "ru";
+var locale = current === "ru" ? "ru-RU" : "en-US";
+var L = (ru, en) => current === "ru" ? ru : en;
 var ATTRS = ["title", "aria-label", "placeholder", "alt", "content"];
-function applyStatic() {
-  if (!isRu) {
-    for (const el of document.querySelectorAll("[data-en]")) el.textContent = el.dataset.en;
-    for (const a of ATTRS) {
-      for (const el of document.querySelectorAll(`[data-en-${a}]`)) el.setAttribute(a, el.getAttribute(`data-en-${a}`));
+var label = (el, toEn) => el.tagName === "BUTTON" ? toEn ? "RU" : "EN" : toEn ? "Русский" : "English";
+function remember(el, attr) {
+  const key = attr ? `data-ru-${attr}` : "data-ru";
+  if (el.hasAttribute(key)) return;
+  el.setAttribute(key, attr ? el.getAttribute(attr) ?? "" : el.textContent);
+}
+function apply(next) {
+  const toEn = next === "en";
+  if (toEn) {
+    for (const el of document.querySelectorAll("[data-en]")) {
+      remember(el);
+      el.textContent = el.dataset.en;
     }
-    const title = document.querySelector("title[data-en]");
-    if (title) document.title = title.dataset.en;
-  }
-  for (const btn of document.querySelectorAll("[data-lang-switch]")) {
-    btn.textContent = isRu ? "EN" : "RU";
-    btn.title = isRu ? "English" : "Русский";
-    btn.addEventListener("click", () => {
-      const next = isRu ? "en" : "ru";
-      try {
-        localStorage.setItem("merchant-ear.lang", next);
-      } catch {
+    for (const a of ATTRS) {
+      for (const el of document.querySelectorAll(`[data-en-${a}]`)) {
+        remember(el, a);
+        el.setAttribute(a, el.getAttribute(`data-en-${a}`));
       }
-      const url = new URL(location.href);
-      url.searchParams.delete("lang");
-      location.replace(url);
-    });
+    }
+  } else {
+    for (const el of document.querySelectorAll("[data-ru]")) el.textContent = el.getAttribute("data-ru");
+    for (const a of ATTRS) {
+      for (const el of document.querySelectorAll(`[data-ru-${a}]`)) el.setAttribute(a, el.getAttribute(`data-ru-${a}`));
+    }
   }
+  const title = document.querySelector("title[data-en]");
+  if (title) document.title = title.textContent.trim();
+}
+function bindSwitch(btn) {
+  if (btn.dataset.langBound) return;
+  btn.dataset.langBound = "1";
+  btn.addEventListener("click", () => {
+    const next = current === "ru" ? "en" : "ru";
+    try {
+      localStorage.setItem("merchant-ear.lang", next);
+    } catch {
+    }
+    current = next;
+    root.lang = next;
+    apply(next);
+    const url = new URL(location.href);
+    if (next === "ru") url.searchParams.delete("lang");
+    else url.searchParams.set("lang", "en");
+    history.replaceState(null, "", url);
+    for (const b of document.querySelectorAll("[data-lang-switch]")) {
+      const toEn = current !== "ru";
+      const spans = b.querySelectorAll("[data-lang]");
+      if (spans.length) continue;
+      b.textContent = label(b, toEn);
+      b.title = toEn ? "English" : "Русский";
+    }
+  });
+}
+function applyStatic() {
+  const app = !!document.querySelector("section.console");
+  for (const btn of document.querySelectorAll("[data-lang-switch]")) {
+    const toEn = current !== "ru";
+    const spans = btn.querySelectorAll("[data-lang]");
+    if (!spans.length) {
+      btn.textContent = label(btn, toEn);
+      btn.title = toEn ? "English" : "Русский";
+    }
+    if (app) {
+      btn.addEventListener("click", () => {
+        try {
+          localStorage.setItem("merchant-ear.lang", current === "ru" ? "en" : "ru");
+        } catch {
+        }
+        const url = new URL(location.href);
+        url.searchParams.delete("lang");
+        location.replace(url);
+      });
+    } else {
+      bindSwitch(btn);
+    }
+  }
+  if (current === "en") apply("en");
   root.removeAttribute("data-i18n-pending");
 }
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", applyStatic);
@@ -1579,7 +1633,7 @@ var AudioEngine = class extends EventTarget {
     });
     await this.attachStream(stream, stream.getAudioTracks()[0]?.label || L("Устройство ввода", "Input device"));
   }
-  async attachStream(stream, label) {
+  async attachStream(stream, label2) {
     this.stop();
     await this.ensureGraph();
     this.stream = stream;
@@ -1591,7 +1645,7 @@ var AudioEngine = class extends EventTarget {
       this.emit("ended");
     }));
     this.resetDetector();
-    this.emit("state", { running: true, label });
+    this.emit("state", { running: true, label: label2 });
   }
   stop() {
     if (!this.stream) return;
@@ -1936,7 +1990,7 @@ async function fetchCustomTemplates() {
     return null;
   }
 }
-var mapNameOf = (label) => label ? String(label).split(" — ")[0] : null;
+var mapNameOf = (label2) => label2 ? String(label2).split(" — ")[0] : null;
 function classify(candidates, possible, minMatch) {
   const scored = candidates.filter((c) => c.scores.length).map((c) => {
     const bySound = scoresBySound(c.scores);
@@ -3513,7 +3567,7 @@ var TooltipReader = class _TooltipReader {
     this.lastText = "";
   }
   // Язык игры запоминаем по первому найденному названию типа: один язык распознаётся почти вдвое быстрее.
-  async load(lang2 = "eng+rus") {
+  async load(lang = "eng+rus") {
     if (this.loading) return this.loading;
     this.loading = (async () => {
       if (!window.Tesseract) {
@@ -3533,10 +3587,10 @@ var TooltipReader = class _TooltipReader {
         workerBlobURL: false,
         gzip: true
       };
-      const worker = await window.Tesseract.createWorker(lang2.split("+"), 1, tessOpts);
+      const worker = await window.Tesseract.createWorker(lang.split("+"), 1, tessOpts);
       await worker.setParameters({ tessedit_pageseg_mode: "11" });
       this.worker = worker;
-      this.lang = lang2;
+      this.lang = lang;
       return worker;
     })();
     this.loading.catch(() => {
@@ -3770,11 +3824,11 @@ var TooltipReader = class _TooltipReader {
       for (const typeId of pairs.keys()) {
         const t = this.model.typeName(typeId);
         const names = [["eng", t.en], ["rus", t.ru], ...(TYPE_LABELS[t.en] ?? []).map((n) => ["rus", n])];
-        for (const [lang2, name] of names) {
+        for (const [lang, name] of names) {
           const needle = norm2(name);
           const d = fuzzyFind(hay, needle);
           const score = needle.length - 2 * d;
-          if (d <= Math.max(1, Math.floor(needle.length * 0.15)) && (!best || score > best.score)) best = { typeId, lang: lang2, score, bbox: line.bbox };
+          if (d <= Math.max(1, Math.floor(needle.length * 0.15)) && (!best || score > best.score)) best = { typeId, lang, score, bbox: line.bbox };
         }
       }
       if (best) types.push(best);
@@ -3817,7 +3871,7 @@ var LabelReader = class {
   get ready() {
     return !!this.worker;
   }
-  load(lang2) {
+  load(lang) {
     if (this.loading) return this.loading;
     this.loading = (async () => {
       if (!window.Tesseract) {
@@ -3837,7 +3891,7 @@ var LabelReader = class {
         workerBlobURL: false,
         gzip: true
       };
-      const worker = await window.Tesseract.createWorker(lang2.split("+"), 1, tessOpts);
+      const worker = await window.Tesseract.createWorker(lang.split("+"), 1, tessOpts);
       await worker.setParameters({ tessedit_pageseg_mode: "6" });
       this.worker = worker;
       return worker;
@@ -3851,9 +3905,9 @@ var LabelReader = class {
    * image — кадр (ImageBitmap или canvas), list — [{ id, x0, y0, x1, y1 }] грузы в пикселях кадра, pitch — шаг сетки.
    * Вернёт Map id → { typeId, label, text } (typeId = null, если подпись не узнали).
    */
-  async read(image, list, pitch, lang2 = "eng+rus") {
+  async read(image, list, pitch, lang = "eng+rus") {
     if (!list.length) return /* @__PURE__ */ new Map();
-    const worker = await this.load(lang2);
+    const worker = await this.load(lang);
     const k = TEXT_PX / (pitch * 0.15);
     const crops = list.map((c) => {
       const sh = c.wide ? c.y1 - c.y0 - 4 : Math.min(c.y1 - c.y0 - 4, pitch * 0.95);
@@ -4798,9 +4852,9 @@ async function readTooltip() {
 var tracker = new GridTracker();
 var labels = new LabelReader(data.types.map((t) => ({ id: t.id, en: t.name })));
 setTimeout(() => {
-  const lang2 = store.get(KEYS_OCR_LANG, "eng+rus");
-  if (reader.canRead) reader.load(lang2).catch((err) => console.warn("OCR:", err));
-  labels.load(lang2).catch((err) => console.warn("OCR подписей:", err));
+  const lang = store.get(KEYS_OCR_LANG, "eng+rus");
+  if (reader.canRead) reader.load(lang).catch((err) => console.warn("OCR:", err));
+  labels.load(lang).catch((err) => console.warn("OCR подписей:", err));
 }, 100);
 var gridWorker = null;
 try {
@@ -6031,11 +6085,11 @@ engine.addEventListener("ended", () => setTimeout(() => {
   }
 }, 0));
 engine.addEventListener("state", (e) => {
-  const { running, label } = e.detail;
+  const { running, label: label2 } = e.detail;
   state.listening = running;
   $("listen").hidden = running;
   $("stop").hidden = !running;
-  setStatus(running ? `${L("Слушаю", "Listening")}: ${label}` : L("Остановлено", "Stopped"), running);
+  setStatus(running ? `${L("Слушаю", "Listening")}: ${label2}` : L("Остановлено", "Stopped"), running);
   if (!running && pipSupported) setPipPending(false);
   if (running) {
     showCaptureError(null);

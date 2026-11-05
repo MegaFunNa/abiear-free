@@ -330,9 +330,14 @@ a.s-map:hover .s-map-name { color: var(--accent-2); }
 .s-soon { z-index: 2; }
 .s-modes li { background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.13); }
 
-/* советы: иконка в светящемся квадрате, строка подсвечивается */
+/* советы: иконка в светящемся квадрате, строка подсвечивается.
+   Секция теперь на всю ширину, поэтому советы встают в ряд, а не столбиком */
+.s-tips {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 14px; align-items: start;
+}
 .s-tips li {
-  padding: 16px 14px; border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  padding: 16px 14px; border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 13px; transition: background var(--t) var(--ease);
 }
 .s-tips li:first-child { padding-top: 16px; }
@@ -414,3 +419,33 @@ a.s-map:hover .s-map-name { color: var(--accent-2); }
 .s-num { margin-bottom: 0; }
 .s-steps h3 { margin-bottom: 0; }
 .s-steps p { grid-column: 1 / -1; margin-top: 10px; }
+
+/* переключатель языка: таблетка RU | EN, текущий язык подсвечен */
+button.s-lang {
+  display: inline-flex; align-items: center; gap: 2px; padding: 3px;
+  background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line);
+  border-radius: 999px; cursor: pointer;
+}
+button.s-lang span {
+  padding: 6px 11px 5px; border-radius: 999px;
+  font: 600 12.5px/1 var(--font-mono); letter-spacing: 0.04em; color: var(--text-2);
+  transition: color var(--t-fast), background var(--t-fast);
+}
+html[lang="ru"] .s-lang [data-lang="ru"],
+html[lang="en"] .s-lang [data-lang="en"] { color: #14170f; background: var(--accent); }
+button.s-lang:hover { border-color: rgba(242, 194, 48, 0.35); }
+button.s-lang:hover span { color: var(--text); }
+html[lang="ru"] .s-lang:hover [data-lang="ru"],
+html[lang="en"] .s-lang:hover [data-lang="en"] { color: #14170f; }
+
+/* легенда: что значат отметки на грузах */
+.s-marks { list-style: none; margin: 0; padding: 0; display: grid;
+           grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
+.s-marks li { padding: 16px 14px 18px; text-align: center;
+              background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); }
+.s-marks img { display: block; margin: 0 auto 12px; height: 118px; width: auto; border-radius: 10px; }
+.s-marks h3 { font: 600 15.5px/1.25 var(--font-body); margin-bottom: 7px; }
+.s-marks p { font-size: 13.5px; color: var(--text-2); }
+.s-marks-note { margin-top: 16px; font-size: 14px; color: var(--text-2); }
+@media (max-width: 1000px) { .s-marks { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 560px)  { .s-marks { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

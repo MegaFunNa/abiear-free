@@ -5,13 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="index, follow, max-image-preview:large">
   <title data-en="ABI Merchant UNLIMITED">ABI Merchant UNLIMITED</title>
-  <meta name="description" content="Показывает, какие предметы лежат в грузе у полевого торговца в Arena Breakout: Infinite: состав, шанс на красное и окупаемость — до покупки. Работает прямо в браузере.">
+  <meta name="description" content="Читает звук, размер и цену груза у торговца в Arena Breakout: Infinite: состав, шанс на красное и окупаемость — до покупки. Работает прямо в браузере.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="ABI Merchant UNLIMITED">
   <meta property="og:locale" content="ru_RU">
   <meta property="og:url" content="https://megafunna.github.io/abiear-free/gate.html">
   <meta property="og:title" content="Что в грузе торговца, видно до покупки | ABI Merchant UNLIMITED">
-  <meta property="og:description" content="Показывает, какие предметы лежат в грузе у полевого торговца в Arena Breakout: Infinite: состав, шанс на красное и окупаемость — до покупки. Работает прямо в браузере.">
+  <meta property="og:description" content="Читает звук, размер и цену груза у торговца в Arena Breakout: Infinite: состав, шанс на красное и окупаемость — до покупки. Работает прямо в браузере.">
   <meta property="og:image" content="https://megafunna.github.io/abiear-free/og/og-main.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
@@ -20,7 +20,7 @@
   <meta property="og:image:alt" content="Что в грузе торговца, видно до покупки">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Что в грузе торговца, видно до покупки | ABI Merchant UNLIMITED">
-  <meta name="twitter:description" content="Показывает, какие предметы лежат в грузе у полевого торговца в Arena Breakout: Infinite: состав, шанс на красное и окупаемость — до покупки. Работает прямо в браузере.">
+  <meta name="twitter:description" content="Читает звук, размер и цену груза у торговца в Arena Breakout: Infinite: состав, шанс на красное и окупаемость — до покупки. Работает прямо в браузере.">
   <meta name="twitter:image" content="https://megafunna.github.io/abiear-free/og/og-main.png">
   <meta name="theme-color" content="#0b0d0c">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 28 9v14l-12 7-12-7V9z' fill='%230b0d0c' stroke='%23f2c230' stroke-width='2.5'/%3E%3Cpath d='M10 13v6M14 10v12M18 12v8M22 14v4' stroke='%23f2c230' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
@@ -40,9 +40,8 @@
   <a class="brand" href="gate.html"><svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2 28 9v14l-12 7-12-7V9z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><path d="M10 13v6M14 10v12M18 12v8M22 14v4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg><span class="brand-name">ABI <b>Merchant</b> <span class="brand-suffix">Unlimited</span></span></a>
   <nav class="s-links" aria-label="Гайды" data-en-aria-label="Guides">
     <a href="pages/gajd-po-torgovcu.html" data-en="Guides" data-en="Guides">Гайды</a>
-    <a href="#" data-guide data-en="Video guide">Видеоинструкция</a>
   </nav>
-  <button class="s-lang" type="button" data-lang-switch>EN</button>
+  <button class="s-lang" type="button" data-lang-switch title="Сменить язык / Switch language"><span data-lang="ru">RU</span><span data-lang="en">EN</span></button>
   <a class="btn small primary s-signin" href="#signin"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span data-en="Sign in with key">Вход по ключу</span></a>
 </div></header>
 <main class="s-main">
@@ -52,11 +51,8 @@
     <h1 data-en="What's in the merchant cargo — visible before you buy">Что в грузе торговца, видно <em>до покупки</em></h1>
     <p class="s-lead" data-en="ABI Merchant Unlimited listens to the game, reads the cargo size and price, and shows which items are inside, red odds and payback.">ABI Merchant Unlimited слушает игру, читает размер и цену груза и показывает, какие предметы внутри, шансы на красное и окупаемость.</p>
     <div class="s-cta">
-      <button class="btn primary lg" type="button" data-guide>
-        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l12-7.5z"/></svg>
-        <span data-en="Video guide">Видеоинструкция</span>
-      </button>
-      <a class="btn ghost lg" href="#steps" data-en="How it works">Как это работает</a>
+      <a class="btn primary lg" href="#steps" data-en="How it works">Как это работает</a>
+      <a class="btn ghost lg" href="#marks" data-en="What the marks mean">Что значат значки</a>
     </div>
     <p class="s-note" data-en="Chrome or Edge on PC"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Chrome или Edge на ПК</p>
   </div>
@@ -80,26 +76,12 @@
 
 
 
-<section class="s-sec s-split">
+<section class="s-sec">
   <div>
     <h2 class="s-h2" data-en="Before you play">Перед игрой</h2>
-    <ul class="s-tips"><li><span class="s-tip-ic"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span><div><h3 data-en="Game window, not the whole screen">Окно игры, а не весь экран</h3><p data-en="Pick the Arena Breakout: Infinite window. Sharing the whole screen pulls Discord and music into the sound.">Выбирайте окно <b>Arena Breakout: Infinite</b>. При показе всего экрана в звук попадут Discord и музыка.</p></div></li><li><span class="s-tip-ic"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 10v3M6 6v11M10 3v18M14 8v7M18 5v13M22 10v3"/></svg></span><div><h3 data-en="No equalizer">Без эквалайзера</h3><p data-en="An equalizer, Sonar, Razer THX, Dolby Atmos, Windows Sonic or Nahimic changes the sound. Turn them off while playing.">Эквалайзер, <b>Sonar</b>, <b>Razer THX</b>, <b>Dolby Atmos</b>, <b>Windows Sonic</b> и <b>Nahimic</b> меняют звук. Выключите их на время игры.</p></div></li><li><span class="s-tip-ic"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4"/></svg></span><div><h3 data-en="No NVIDIA filters">Без фильтров NVIDIA</h3><p data-en="In-game NVIDIA filters (Alt+F3) break the recognition. Turn them off while playing.">Фильтры игры <b>NVIDIA</b> (Alt+F3) мешают сайту. Выключите их на время игры.</p></div></li><li><span class="s-tip-ic"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/></svg></span><div><h3 data-en="Drag the cargo calmly">Двигайте груз спокойно</h3><p data-en="Hover the cursor, wait for the price, then drag and drop. No double clicks.">Наведите курсор, дождитесь цены, перетащите и положите. Без двойных кликов.</p></div></li><li><span class="s-tip-ic"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/></svg></span><div><h3 data-en="Browser">Браузер</h3><p data-en="Chrome or Edge on a PC. Firefox is not supported."><b>Chrome</b> или <b>Edge</b> на ПК. В Firefox сайт не работает.</p></div></li></ul>
+    <ul class="s-tips"><li><span class="s-tip-ic"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 10v3M6 6v11M10 3v18M14 8v7M18 5v13M22 10v3"/></svg></span><div><h3 data-en="Clean sound">Чистый звук</h3><p data-en="An equalizer, Sonar, Razer THX or NVIDIA filters (Alt+F3) changes the sound, so the cargo can't be recognized.">Без эквалайзера, <b>Sonar</b>, <b>Razer THX</b> и фильтров <b>NVIDIA</b> (Alt+F3): они меняют звук, и груз не узнать.</p></div></li><li><span class="s-tip-ic"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/></svg></span><div><h3 data-en="Browser">Браузер</h3><p data-en="Chrome or Edge on a PC. Firefox is not supported."><b>Chrome</b> или <b>Edge</b> на ПК. В Firefox сайт не работает.</p></div></li></ul>
   </div>
-  <section class="s-finds" aria-label="Видеоинструкция">
-    <h2 class="s-h2" data-en="Video guide">Видеоинструкция</h2>
-    <video class="guide-video" controls playsinline preload="none" poster="video/poster-ru.jpg"
-           data-src-ru="video/instruction-ru.mp4" data-src-en="video/instruction-en.mp4"></video>
-    <p class="s-finds-note" data-en="One minute: how to pick the map, share the game sound and read the result.">
-      Минута: как выбрать карту, поделиться звуком игры и читать результат.</p>
-    <div class="s-finds-more">
-      <h3 data-en="What you see before buying">Что видно до покупки</h3>
-      <ul>
-        <li data-en="Which items are inside the cargo">предметы, которые лежат в грузе</li>
-        <li data-en="The chance of a red inside">шанс, что внутри красное</li>
-        <li data-en="Whether the cargo pays for itself">окупаемость: стоит ли брать</li>
-      </ul>
-    </div>
-  </section>
+  
 </section>
     <section class="s-sec" aria-labelledby="steps">
   <h2 class="s-h2" id="steps" data-en="Getting started">Как начать</h2>
@@ -108,7 +90,28 @@
 
 
 
-<section class="s-sec" aria-labelledby="faq">
+<section class="s-sec" aria-labelledby="marks">
+    <h2 class="s-h2" id="marks" data-en="What the marks mean">Что значат значки</h2>
+    <ul class="s-marks">
+      <li><img src="docs/screens/cell0.png" alt="Выгодно" data-en-alt="Profitable" width="79" height="159">
+        <h3 data-en="Profitable">Выгодно</h3>
+        <p data-en="The “Payback NN%” bar: the chance to end up at least 50k ahead.">Полоса <b>«Окуп NN%»</b> — шанс остаться в плюсе минимум на 50 000.</p></li>
+      <li><img src="docs/screens/cell1.png" alt="Может быть красный" data-en-alt="A red may be inside" width="79" height="159">
+        <h3 data-en="A red may be inside">Может быть красный</h3>
+        <p data-en="The “RED NN%” plate: the chance of a red item. On a profitable cargo it comes with the icon and the payback bar.">Плашка <b>«RED NN%»</b> — шанс на красный предмет. На выгодном грузе к ней добавляются иконка и полоса «Окуп».</p></li>
+      <li><img src="docs/screens/cell2.png" alt="Не выгодно" data-en-alt="Not profitable" width="79" height="159">
+        <h3 data-en="Not profitable">Не выгодно</h3>
+        <p data-en="On average the crate does not pay off — even a lucky drop loses money.">💩 — в среднем груз не отбивается: даже удачный исход не окупает ящик.</p></li>
+      <li><img src="docs/screens/cell3.png" alt="Точно красный" data-en-alt="Red for sure" width="159" height="159">
+        <h3 data-en="Red for sure">Точно красный</h3>
+        <p data-en="A red with 100% certainty: a diamond instead of the icon, no payback bar — take it.">💎 — красный на 100 %. Вместо иконки алмаз и никакой полосы «Окуп»: берём не думая.</p></li>
+      <li><img src="docs/screens/cell4.png" alt="Звук не слышали" data-en-alt="Sound not heard yet" width="79" height="159">
+        <h3 data-en="Sound not heard yet">Звук не слышали</h3>
+        <p data-en="Drag the cargo: the sound is what tells the program what is inside.">Пусто — груз ещё не перетаскивали. Перетащите, и появится вердикт.</p></li>
+    </ul>
+    <p class="s-marks-note" data-en="Purple items are not shown in the list — but they still count towards the odds and the payback.">Фиолетовые товары в список не попадают — но на шанс и окупаемость влияют.</p>
+  </section>
+    <section class="s-sec" aria-labelledby="faq">
   <h2 class="s-h2" id="faq" data-en="FAQ">Вопросы</h2>
   <div class="s-faq"><details><summary data-en="How do I contact you?">Как с вами связаться?</summary><p data-en="Discord _maks_2010._83479 — questions, bugs and ideas, write any time.">Discord: <code>_maks_2010._83479</code> — вопросы, баги и идеи. Пишите, отвечаю.</p></details><details><summary data-en="Is this a cheat?">А это чит?</summary><p data-en="No — not by how it works. It never reads the game memory or files and never touches the game process: it gets exactly what you see and hear — the game window picture (like OBS) and the sound (like Discord). No hidden information like enemy positions or other players' bags: it only counts faster than you would in your head.<br><br>The official prohibited software list for Arena Breakout: Infinite covers DMA devices, macros and debuggers (Cheat Engine, x96dbg and the like). This helper is a plain browser tab and fits none of those. The developer also lists frame-capture tools (RenderDoc, Nsight) as not recommended — those hook into the game's own graphics, which is not our case.<br><br>In fairness: ACE is a kernel-level anti-cheat and bans are harsh (up to 10 years and by hardware), so nobody can give a 100% guarantee. Ban reports are about plug-ins, macros and EQ software — we found no case of a ban for a helper like this. The call is yours.">Нет — по методу. Программа не читает память и файлы игры и не лезет в её процесс: она получает ровно то, что видите и слышите вы, — картинку окна игры (как OBS) и звук (как Discord). Никакой скрытой информации, вроде чужих позиций или рюкзаков, она не даёт: только считает быстрее, чем вы в уме.<br><br>В официальном списке запрещённого софта Arena Breakout: Infinite — DMA-устройства, макросы и отладчики (Cheat Engine, x96dbg и подобное). Наш помощник — обычная вкладка браузера, ни под один пункт не подпадает. Отдельно разработчик не рекомендует софт захвата кадров (RenderDoc, Nsight): он перехватывает графику самой игры — это не наш случай.<br><br>Честно: античит ACE — ядровой, баны раздают жёстко (до 10 лет и по железу), поэтому стопроцентной гарантии не даст никто. В сводках банят за плагины, макросы и Eq-софт — случаев бана за помощники такого типа мы не нашли. Решение за вами.</p></details></div>
 </section>
@@ -117,7 +120,6 @@
   <div class="s-foot-brand"><a class="brand" href="gate.html"><svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2 28 9v14l-12 7-12-7V9z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><path d="M10 13v6M14 10v12M18 12v8M22 14v4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg><span class="brand-name">ABI <b>Merchant</b> <span class="brand-suffix">Unlimited</span></span></a><p class="s-foot-domain">megafunna.github.io/abiear-free</p></div>
   <nav class="s-foot-col" aria-label="Гайды"><h2 data-en="Guides">Гайды</h2><div class="s-foot-guides"><a href="pages/gajd-po-torgovcu.html" data-en="Field Merchant guide">Гайд по полевому торговцу</a><a href="pages/kak-najti-torgovca.html" data-en="How to find the Field Merchant">Как найти полевого торговца</a><a href="pages/krasnoe-u-torgovca.html" data-en="How to get red items from the merchant">Как найти красное у торговца</a><a href="pages/torgovec/farm.html" data-en="Field Merchant on Farm">Где торговец на Ферме</a><a href="pages/torgovec/valley.html" data-en="Field Merchant on Valley">Где торговец на Долине</a><a href="pages/torgovec/northridge.html" data-en="Field Merchant on Northridge">Где торговец на Нортридже</a><a href="pages/torgovec/armory.html" data-en="Field Merchant on Armory">Где торговец на Арсенале</a><a href="pages/torgovec/tvstation.html" data-en="Field Merchant at TV Station">Где торговец на Телецентре</a><a href="pages/torgovec/airport.html" data-en="Field Merchant at Airport">Где торговец в Аэропорту</a></div></nav>
   <nav class="s-foot-col" aria-label="ABI Merchant Unlimited"><h2>ABI Merchant</h2>
-    <a href="#" data-guide data-en="Video guide">Видеоинструкция</a>
     <a href="#signin" data-en="Sign in with key">Вход по ключу</a>
     <a href="#" data-lang-switch>English</a>
   </nav>
@@ -125,7 +127,6 @@
 <script src="js/static-data.js"></script>
   <script src="js/static-boot.js"></script>
   <script src="js/gate-app.js"></script>
-<script src="js/guide.js"></script>
 <script>
   // космический фон: звёзды на канвасе. Тихий режим — если в системе включено
   // «уменьшить движение», рисуем один статичный кадр и не крутим анимацию.
@@ -180,15 +181,6 @@
     start();
   })();
 </script>
-<script>
-  // язык ролика в блоке видеоинструкции
-  (() => {
-    const v = document.querySelector(".guide-video");
-    if (!v) return;
-    const en = document.documentElement.lang === "en";
-    v.src = en ? v.dataset.srcEn : v.dataset.srcRu;
-    v.poster = "video/poster-" + (en ? "en" : "ru") + ".jpg";
-  })();
-</script>
+
 </body>
 </html>

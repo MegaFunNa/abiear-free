@@ -910,32 +910,86 @@
 
   // js/i18n.js
   var root = document.documentElement;
-  var lang = root.lang === "en" ? "en" : "ru";
-  var isRu = lang === "ru";
+  var current = root.lang === "en" ? "en" : "ru";
+  var isRu = current === "ru";
   var ATTRS = ["title", "aria-label", "placeholder", "alt", "content"];
-  function applyStatic() {
-    if (!isRu) {
-      for (const el of document.querySelectorAll("[data-en]")) el.textContent = el.dataset.en;
-      for (const a of ATTRS) {
-        for (const el of document.querySelectorAll(`[data-en-${a}]`)) el.setAttribute(a, el.getAttribute(`data-en-${a}`));
+  var label = (el, toEn) => el.tagName === "BUTTON" ? toEn ? "RU" : "EN" : toEn ? "Русский" : "English";
+  function remember(el, attr) {
+    const key = attr ? `data-ru-${attr}` : "data-ru";
+    if (el.hasAttribute(key)) return;
+    el.setAttribute(key, attr ? el.getAttribute(attr) ?? "" : el.textContent);
+  }
+  function apply(next) {
+    const toEn = next === "en";
+    if (toEn) {
+      for (const el of document.querySelectorAll("[data-en]")) {
+        remember(el);
+        el.textContent = el.dataset.en;
       }
-      const title = document.querySelector("title[data-en]");
-      if (title) document.title = title.dataset.en;
-    }
-    for (const btn of document.querySelectorAll("[data-lang-switch]")) {
-      btn.textContent = isRu ? "EN" : "RU";
-      btn.title = isRu ? "English" : "Русский";
-      btn.addEventListener("click", () => {
-        const next = isRu ? "en" : "ru";
-        try {
-          localStorage.setItem("merchant-ear.lang", next);
-        } catch {
+      for (const a of ATTRS) {
+        for (const el of document.querySelectorAll(`[data-en-${a}]`)) {
+          remember(el, a);
+          el.setAttribute(a, el.getAttribute(`data-en-${a}`));
         }
-        const url = new URL(location.href);
-        url.searchParams.delete("lang");
-        location.replace(url);
-      });
+      }
+    } else {
+      for (const el of document.querySelectorAll("[data-ru]")) el.textContent = el.getAttribute("data-ru");
+      for (const a of ATTRS) {
+        for (const el of document.querySelectorAll(`[data-ru-${a}]`)) el.setAttribute(a, el.getAttribute(`data-ru-${a}`));
+      }
     }
+    const title = document.querySelector("title[data-en]");
+    if (title) document.title = title.textContent.trim();
+  }
+  function bindSwitch(btn) {
+    if (btn.dataset.langBound) return;
+    btn.dataset.langBound = "1";
+    btn.addEventListener("click", () => {
+      const next = current === "ru" ? "en" : "ru";
+      try {
+        localStorage.setItem("merchant-ear.lang", next);
+      } catch {
+      }
+      current = next;
+      root.lang = next;
+      apply(next);
+      const url = new URL(location.href);
+      if (next === "ru") url.searchParams.delete("lang");
+      else url.searchParams.set("lang", "en");
+      history.replaceState(null, "", url);
+      for (const b of document.querySelectorAll("[data-lang-switch]")) {
+        const toEn = current !== "ru";
+        const spans = b.querySelectorAll("[data-lang]");
+        if (spans.length) continue;
+        b.textContent = label(b, toEn);
+        b.title = toEn ? "English" : "Русский";
+      }
+    });
+  }
+  function applyStatic() {
+    const app = !!document.querySelector("section.console");
+    for (const btn of document.querySelectorAll("[data-lang-switch]")) {
+      const toEn = current !== "ru";
+      const spans = btn.querySelectorAll("[data-lang]");
+      if (!spans.length) {
+        btn.textContent = label(btn, toEn);
+        btn.title = toEn ? "English" : "Русский";
+      }
+      if (app) {
+        btn.addEventListener("click", () => {
+          try {
+            localStorage.setItem("merchant-ear.lang", current === "ru" ? "en" : "ru");
+          } catch {
+          }
+          const url = new URL(location.href);
+          url.searchParams.delete("lang");
+          location.replace(url);
+        });
+      } else {
+        bindSwitch(btn);
+      }
+    }
+    if (current === "en") apply("en");
     root.removeAttribute("data-i18n-pending");
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", applyStatic);
@@ -1508,7 +1562,7 @@
       this.lastText = "";
     }
     // Язык игры запоминаем по первому найденному названию типа: один язык распознаётся почти вдвое быстрее.
-    async load(lang2 = "eng+rus") {
+    async load(lang = "eng+rus") {
       if (this.loading) return this.loading;
       this.loading = (async () => {
         if (!window.Tesseract) {
@@ -1528,10 +1582,10 @@
           workerBlobURL: false,
           gzip: true
         };
-        const worker = await window.Tesseract.createWorker(lang2.split("+"), 1, tessOpts);
+        const worker = await window.Tesseract.createWorker(lang.split("+"), 1, tessOpts);
         await worker.setParameters({ tessedit_pageseg_mode: "11" });
         this.worker = worker;
-        this.lang = lang2;
+        this.lang = lang;
         return worker;
       })();
       this.loading.catch(() => {
@@ -1765,11 +1819,11 @@
         for (const typeId of pairs.keys()) {
           const t = this.model.typeName(typeId);
           const names = [["eng", t.en], ["rus", t.ru], ...(TYPE_LABELS[t.en] ?? []).map((n) => ["rus", n])];
-          for (const [lang2, name] of names) {
+          for (const [lang, name] of names) {
             const needle = norm(name);
             const d = fuzzyFind(hay, needle);
             const score = needle.length - 2 * d;
-            if (d <= Math.max(1, Math.floor(needle.length * 0.15)) && (!best || score > best.score)) best = { typeId, lang: lang2, score, bbox: line.bbox };
+            if (d <= Math.max(1, Math.floor(needle.length * 0.15)) && (!best || score > best.score)) best = { typeId, lang, score, bbox: line.bbox };
           }
         }
         if (best) types.push(best);
@@ -1797,7 +1851,7 @@
     }
   };
 
-  // ../../../tmp/tmpruk5eyjq/test-api-entry.js
+  // ../../../tmp/tmpn3jax0sx/test-api-entry.js
   window.__TEST_API = {
     grid: { detectGrid, GRID_COLS },
     features: { FeatureExtractor },
