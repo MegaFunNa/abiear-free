@@ -154,21 +154,35 @@ input[type=range] { width: 100%; height: 24px; accent-color: var(--accent); curs
 .nav-links a:hover { color: var(--text); background: var(--surface-2); }
 
 /* дискорды тестировщиков — сразу справа от названия */
-.nav-testers { display: inline-flex; align-items: center; gap: 6px; margin-left: 14px; margin-right: auto; white-space: nowrap; }
-.nav-testers-label { font: 600 10.5px/1 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-2); opacity: 0.75; }
-.nav-tester { font: 500 12px/1 var(--font-mono); color: var(--text-2); padding: 5px 8px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface-2); }
-.nav-tester + .nav-tester { margin-left: -2px; }
+.nav-testers { display: inline-flex; align-items: center; gap: 8px; margin-left: 14px; margin-right: auto; white-space: nowrap; }
+.nav-testers-label { font: 600 10.5px/1 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-2); opacity: 0.7; }
+.nav-tester { font: 500 12px/1 var(--font-mono); color: var(--text-2); padding: 6px 11px 5px; border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.13); background: rgba(255, 255, 255, 0.06); }
+.nav-tester + .nav-tester { margin-left: -4px; }
 @media (max-width: 860px) { .nav-testers-label { display: none; } }
 @media (max-width: 620px) { .nav-testers { display: none; } }
 
-.nav-lang { font: 600 12.5px/1 var(--font-mono); letter-spacing: 0.04em; }
-.nav-guide .i { fill: currentColor; }
 .nav-tg .i { fill: currentColor; stroke: none; }
 
-/* видеоинструкция (js/guide.js) */
-.map-dialog.guide-dialog { width: min(1040px, calc(100vw - 32px)); padding: 16px; }
-.guide-dialog .map-dialog-head { margin-bottom: 12px; }
-.guide-dialog video { display: block; width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: var(--r-sm); }
+/* меню рабочей страницы — та же стилистика, что и в шапке главной:
+   таблетка языка, плашки тестировщиков скруглённые, кнопки одной высоты */
+button.s-lang {
+  display: inline-flex; align-items: center; gap: 2px; padding: 3px;
+  background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line);
+  border-radius: 999px; cursor: pointer;
+}
+button.s-lang span {
+  padding: 6px 11px 5px; border-radius: 999px;
+  font: 600 12.5px/1 var(--font-mono); letter-spacing: 0.04em; color: var(--text-2);
+  transition: color var(--t-fast), background var(--t-fast);
+}
+html[lang="ru"] .s-lang [data-lang="ru"],
+html[lang="en"] .s-lang [data-lang="en"] { color: #14170f; background: var(--accent); }
+button.s-lang:hover { border-color: rgba(242, 194, 48, 0.35); }
+button.s-lang:hover span { color: var(--text); }
+html[lang="ru"] .s-lang:hover [data-lang="ru"],
+html[lang="en"] .s-lang:hover [data-lang="en"] { color: #14170f; }
+.nav-logout { display: inline-grid; place-items: center; height: 32px; width: 34px; }
 /* Английская версия: текст подставляет js/i18n.js, до этого страницу не показываем. */
 html[data-i18n-pending] body { visibility: hidden; }
 
@@ -529,7 +543,7 @@ body.mini .flow-sub { font-size: 12.5px; }
   .map-field { flex-basis: 100%; }
   .panel { padding: 16px; }
   .status { max-width: 52vw; }
-  .nav-guide span, .nav-tg span { display: none; }
+  .nav-tg span { display: none; }
   .hero-stats dd { font-size: 24px; }
   .callout { flex-direction: column; }
 }
