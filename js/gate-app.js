@@ -40,7 +40,7 @@ var msg = $("msg");
 var submit = $("submit");
 {
   const box = $("ver");
-  if (box) box.textContent = window.APP_VERSION ? `beta ${window.APP_VERSION}` : "";
+  if (box) box.textContent = window.APP_VERSION ? `Версия ${window.APP_VERSION}` : "";
 }
 var wantsAdmin = /\/admin\.html$/.test(location.pathname);
 if (wantsAdmin) $("buy").hidden = true;

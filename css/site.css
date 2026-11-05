@@ -401,3 +401,16 @@ a.s-map:hover .s-map-name { color: var(--accent-2); }
   content: ""; position: absolute; left: 0; top: 7px; width: 7px; height: 7px; border-radius: 50%;
   background: var(--accent); box-shadow: 0 0 8px rgba(242, 194, 48, 0.8);
 }
+
+/* шаги: три карточки в ряд на любой ширине окна (раньше на ~1000 px третья
+   оставалась одна во втором ряду и справа зияла пустота) и без лишней высоты —
+   номер и заголовок в одну строку, текст под ними */
+@media (max-width: 1000px) { .s-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 760px)  { .s-steps { grid-template-columns: 1fr; } }
+.s-steps li {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 10px;
+  align-items: baseline; padding: 16px 20px 18px;
+}
+.s-num { margin-bottom: 0; }
+.s-steps h3 { margin-bottom: 0; }
+.s-steps p { grid-column: 1 / -1; margin-top: 10px; }
