@@ -55,7 +55,7 @@
 .s-sec-head p { color: var(--text-2); }
 
 /* шаги */
-.s-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; counter-reset: none; }
+.s-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; counter-reset: none; }
 .s-steps li { position: relative; padding: 22px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); }
 .s-num { display: block; font: 600 13px/1 var(--font-mono); color: var(--accent); letter-spacing: 0.08em; margin-bottom: 18px; }
 .s-steps h3 { font: 600 17px/1.25 var(--font-body); margin-bottom: 8px; }
@@ -365,17 +365,28 @@ a.s-map:hover .s-map-name { color: var(--accent-2); }
 .s-faq { border-top: 1px solid rgba(255, 255, 255, 0.09); }
 .s-faq details { border-bottom: 1px solid rgba(255, 255, 255, 0.07); }
 
-/* вопросы: панель, а не голые строки на фоне космоса */
+/* вопросы: у каждого своя карточка, а не одна сплошная панель на все */
 .s-faq {
-  padding: 4px 24px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 20px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.08)),
-    radial-gradient(140% 100% at 8% -10%, rgba(124, 150, 255, 0.14), rgba(124, 150, 255, 0) 58%);
-  box-shadow: 0 30px 60px -40px rgba(0, 0, 0, 0.95), inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none;
+  display: flex; flex-direction: column; gap: 12px;
 }
-.s-faq details:last-of-type { border-bottom: 0; }
+.s-faq details {
+  padding: 4px 22px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.05)),
+    radial-gradient(130% 100% at 6% -20%, rgba(124, 150, 255, 0.13), rgba(124, 150, 255, 0) 60%);
+  box-shadow: 0 26px 50px -40px rgba(0, 0, 0, 0.95), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+.s-faq details[open] { border-color: rgba(242, 194, 48, 0.32); }
+.s-faq details:last-of-type { border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+/* контакт в ответе: чтобы подчёркивание не съедалось и копировалось целиком */
+.s-faq code {
+  font: 600 14.5px/1 var(--font-mono); padding: 4px 9px; border-radius: 9px;
+  color: var(--text); background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14); user-select: all;
+}
 
 /* блок под видео: чем занято пустое место в правой колонке */
 .s-finds-more {
