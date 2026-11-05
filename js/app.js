@@ -6022,8 +6022,13 @@ async function openPip({ quiet = false } = {}) {
     const link = pip.document.createElement("link");
     link.rel = "stylesheet";
     link.href = new URL("css/style.css", location.href).href;
-    const fonts = document.querySelector("link[href*='fonts.googleapis.com/css2']").cloneNode();
-    pip.document.head.append(fonts, link);
+    const fonts = document.querySelector("link[rel='stylesheet'][href*='fonts']");
+    if (fonts) {
+      const copy = fonts.cloneNode();
+      copy.href = new URL(fonts.getAttribute("href"), location.href).href;
+      pip.document.head.append(copy);
+    }
+    pip.document.head.append(link);
     pip.document.title = "ABI Merchant Unlimited";
     pip.document.documentElement.lang = document.documentElement.lang;
     pip.document.body.className = "mini";
