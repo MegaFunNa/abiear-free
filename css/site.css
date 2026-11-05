@@ -273,21 +273,31 @@ body.space .s-cta .btn.primary { box-shadow: 0 0 0 1px rgba(242, 194, 48, 0.25),
 a.s-map,
 .s-cards a {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.012)),
-    radial-gradient(130% 100% at 50% -10%, rgba(129, 152, 255, 0.08), rgba(0, 0, 0, 0) 62%);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 18px;
-  box-shadow: 0 26px 55px -40px rgba(0, 0, 0, 0.95), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  transition: border-color var(--t) var(--ease), box-shadow var(--t) var(--ease), transform var(--t) var(--ease);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.08)),
+    radial-gradient(140% 100% at 8% -10%, rgba(124, 150, 255, 0.14), rgba(124, 150, 255, 0) 58%);
+  border: 1px solid rgba(255, 255, 255, 0.17);
+  border-radius: 20px;
+  box-shadow: 0 30px 60px -40px rgba(0, 0, 0, 0.95), inset 0 1px 0 rgba(255, 255, 255, 0.09);
 }
-.s-steps li:hover,
+/* подсветка — только у ссылок; шаги «Как начать» не ссылки и не кнопки */
+a.s-map,
+.s-cards a { transition: border-color var(--t) var(--ease), box-shadow var(--t) var(--ease), transform var(--t) var(--ease); }
 a.s-map:hover,
 .s-cards a:hover {
-  border-color: rgba(242, 194, 48, 0.42);
-  box-shadow: 0 0 0 1px rgba(242, 194, 48, 0.14),
-              0 28px 60px -36px rgba(242, 194, 48, 0.28),
-              inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  border-color: rgba(242, 194, 48, 0.55);
+  box-shadow: 0 0 0 1px rgba(242, 194, 48, 0.18),
+              0 34px 70px -34px rgba(242, 194, 48, 0.35),
+              inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
+/* светящаяся линия по верхнему краю карточки-ссылки */
+a.s-map::after,
+.s-cards a::after {
+  content: ""; position: absolute; z-index: 2; left: 18px; right: 18px; top: 0; height: 1px;
+  background: linear-gradient(90deg, rgba(242, 194, 48, 0), rgba(242, 194, 48, 0.6), rgba(242, 194, 48, 0));
+  opacity: 0.45; transition: opacity var(--t) var(--ease);
+}
+a.s-map:hover::after,
+.s-cards a:hover::after { opacity: 1; }
 
 /* заголовки секций — светящаяся точка */
 .s-h2::before {
@@ -309,14 +319,16 @@ a.s-map:hover,
 }
 
 /* карты: мягкое затемнение поверх картинки, режимы — стеклянные */
-.s-map img { filter: saturate(0.95) contrast(1.06) brightness(0.96); }
-.s-map::before {
-  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 62%; z-index: 1;
-  background: linear-gradient(180deg, rgba(5, 7, 11, 0.55), rgba(5, 7, 11, 0));
-  pointer-events: none;
+.s-map img { filter: saturate(1.05) contrast(1.08) brightness(1.04); }
+.s-map-name::after {
+  content: "\2192"; display: inline-block; margin-left: 8px; color: var(--accent);
+  opacity: 0; transform: translateX(-5px);
+  transition: opacity var(--t) var(--ease), transform var(--t) var(--ease);
 }
+a.s-map:hover .s-map-name::after { opacity: 1; transform: translateX(0); }
+a.s-map:hover .s-map-name { color: var(--accent-2); }
 .s-soon { z-index: 2; }
-.s-modes li { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.08); }
+.s-modes li { background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.13); }
 
 /* советы: иконка в светящемся квадрате, строка подсвечивается */
 .s-tips li {
@@ -341,7 +353,12 @@ a.s-map:hover,
 }
 
 /* карточки гайдов: плашка ярче, картинка ближе на наведении */
-.s-card-tag { background: rgba(8, 10, 9, 0.72); border-color: rgba(242, 194, 48, 0.35); }
+.s-card-tag {
+  background: linear-gradient(180deg, rgba(242, 194, 48, 0.24), rgba(242, 194, 48, 0.09));
+  border-color: rgba(242, 194, 48, 0.5); color: #ffe6a3;
+}
+.s-cards a:hover h3 { color: var(--accent-2); }
+.s-card-img::after { background: linear-gradient(180deg, rgba(11, 13, 12, 0) 30%, rgba(15, 18, 21, 0.92) 100%); }
 .s-cards a:hover .s-card-img img { transform: scale(1.07); }
 
 /* вопросы */
