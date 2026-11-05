@@ -5431,10 +5431,21 @@ function heardItems(g) {
   const events = g.events.filter((e) => e.enabled);
   if (!events.length || !state.profileId) return null;
   const allowedSounds = matchingSounds({ events }, remote.possible(state.profileId, g.typeId, g.price));
+  let best = 0;
+  for (const e of events) for (const [id, m] of e.bySound) if (allowedSounds.has(id)) best = Math.max(best, m.score ?? 0);
+  g.bestScore = best;
   const rows = rowsFor(`cargo:${g.key}`, g.typeId, g.price, { events: events.map((e) => e.bySound), allowedSounds }, [g.w, g.h]);
   if ((g.logRows ?? -1) !== rows.length) {
     g.logRows = rows.length;
     pushLog(rows.length ? `груз ${g.key}: ${rows.length} строк` : `груз ${g.key}: ПУСТО — тип ${g.typeId ?? "?"}, цена ${g.price ?? "?"}, размер ${g.w}×${g.h}, звуков ${events.length}, разрешённые звуки [${[...allowedSounds].join(",")}]`);
+  }
+  const gemKey = `${rows.length}|${gemOk(g)}`;
+  if (gemKey !== g.logGem) {
+    g.logGem = gemKey;
+    const redAll = rows.length ? rows.reduce((sum, r) => sum + (r.item.rarity >= RED_RARITY ? r.p : 0), 0) : 0;
+    if (redAll >= 0.9995 && !gemOk(g)) {
+      pushLog(`груз ${g.key}: алмаз НЕ показан — звук ${best.toFixed(2)}${g.priceGuess ? ", цена угадана по соседним клеткам" : ""}, тип ${g.typeId ?? "?"}`);
+    }
   }
   const byItem = /* @__PURE__ */ new Map();
   for (const r of rows) {
@@ -5489,6 +5500,12 @@ var ICON_MAX = 200;
 var ICON_GAP = 2;
 var ICON_STRIP = 4;
 var TITLE_ITEMS = 12;
+var GEM_GUESS_MATCH = 0.85;
+var gemOk = (g) => {
+  if (!g || g.typeId == null || g.price == null) return false;
+  const score = g.bestScore ?? 0;
+  return score >= (g.priceGuess ? GEM_GUESS_MATCH : WEAK_MATCH);
+};
 var itemAspect = (item) => item.size ? item.size[0] / item.size[1] : 1;
 var fitIcon = (a, w, h) => {
   const iw = Math.min(w, h * a);
@@ -5507,12 +5524,12 @@ function iconGrid(aspects, extra, W, H) {
   }
   return best;
 }
-function heardHtml(heard, box, price = null, blink = 0, stripH = 0) {
+function heardHtml(heard, box, price = null, blink = 0, stripH = 0, solid = true) {
   const { W, H } = box;
   const bad = (x) => !x.ok;
   const { redP, red } = cargoMarks(heard);
   const over = (html, cls, style = "") => `<span class="${cls}" style="left:${box.s}px;top:${box.t}px;width:${W}px;height:${H}px;${style}">${html}</span>`;
-  if (redP >= 0.9995) return over("💎", "g-trash g-gem");
+  if (redP >= 0.9995 && solid) return over("💎", "g-trash g-gem");
   const goodCrate = (heard.stats ?? heardStats(heard)).good;
   const iconsIn = (bx) => {
     const { W: W2, H: H2 } = bx;
@@ -5595,7 +5612,7 @@ function gridHtml(mini = false, cell = GRID_CELL_MIN) {
     ].filter(Boolean).join("\n");
     const box = { ...pad, W: g.w * cell + (g.w - 1) * gap - 2 - 2 * pad.s, H: g.h * cell + (g.h - 1) * gap - 2 - pad.t - pad.b };
     out.push(`<button class="${cls}" data-cargo="${g.key}" title="${esc(title)}" style="grid-area:${g.r - r0 + 1}/${g.q + 1}/span ${g.h}/span ${g.w}${red ? `;animation-delay:${blink}ms` : ""}">
-      ${rows?.length ? heardHtml(rows, box, g.price, blink, strip) : `<span class="g-label">${esc(mini ? short : cargoName(g) ?? "")}</span>`}
+      ${rows?.length ? heardHtml(rows, box, g.price, blink, strip, gemOk(g)) : `<span class="g-label">${esc(mini ? short : cargoName(g) ?? "")}</span>`}
       ${rows?.length && stats.good && marks.redP < 0.9995 ? `<span class="g-chance${mini ? " tiny" : ""}" style="color:${pay >= 0.5 ? "#7ee787" : "#e8c46b"};font-size:${cFs.toFixed(1)}px">${cTxt}</span>` : ""}
       ${mini ? "" : `<span class="g-size">${g.w}×${g.h}</span>`}
       ${priceTag(g, rows, mini)}
