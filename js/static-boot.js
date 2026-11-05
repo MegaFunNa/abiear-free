@@ -165,7 +165,8 @@ window.tessReady = async () => {
   window.TESS_STATIC.workerPath = workerUrl;
   return workerUrl;
 };
-setTimeout(() => {
+var NEEDS_TESS = !!document.getElementById("quiz") || /\/index\.html$|^\/$/.test(location.pathname);
+if (NEEDS_TESS) setTimeout(() => {
   window.tessReady().catch(() => {
   });
 }, 1500);
