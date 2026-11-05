@@ -931,6 +931,7 @@ var RemoteModel = class extends EventTarget {
   /** model — MerchantModel на витрине (/api/catalog): названия, карты, цены, предметы без звуков. */
   constructor(model2) {
     super();
+    this.version = 0;
     this.model = model2;
     this.cache = /* @__PURE__ */ new Map();
     this.slots = /* @__PURE__ */ new Map();
@@ -1034,6 +1035,7 @@ var RemoteModel = class extends EventTarget {
       if (item) rows.push(this.model.named({ item, typeId, prior: prior2, cargoPrice, ok, p }));
     }
     this.cache.set(key, rows);
+    this.version++;
     this.failed.delete(key);
     while (this.cache.size > CACHE_SIZE) this.cache.delete(this.cache.keys().next().value);
   }
@@ -5429,7 +5431,18 @@ var TYPE_SHORT = isRu ? {
 var cargoName = (g) => g.typeId != null ? model.typeName(g.typeId).name : g.label;
 function heardItems(g) {
   const events = g.events.filter((e) => e.enabled);
-  if (!events.length || !state.profileId) return null;
+  if (!events.length || !state.profileId) {
+    g.heardSig = null;
+    g.heard = null;
+    return null;
+  }
+  const sig = `${state.profileId}|${remote.version}|${g.typeId}|${g.price}|${g.w}x${g.h}|${events.length}|${events.map((e) => e.id).join(",")}`;
+  if (g.heardSig === sig) return g.heard;
+  g.heardSig = sig;
+  g.heard = heardItemsCalc(g, events);
+  return g.heard;
+}
+function heardItemsCalc(g, events) {
   const allowedSounds = matchingSounds({ events }, remote.possible(state.profileId, g.typeId, g.price));
   let best = 0;
   for (const e of events) for (const [id, m] of e.bySound) if (allowedSounds.has(id)) best = Math.max(best, m.score ?? 0);
