@@ -850,3 +850,92 @@ body.mini .category-prob b { font-size: 14px; }
 .brand-suffix { display: inline-block; margin-left: 6px; padding: 3px 7px 2px; border: 1px solid var(--accent-line); border-radius: 999px;
   font: 600 9.5px/1 var(--font-mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent);
   background: var(--accent-soft); vertical-align: 3px; }
+
+/* =========================================================
+   Космос на рабочей странице (v18.45)
+   Тот же фон, что на главной, но без единой анимации: эта
+   страница работает рядом с игрой, и каждый кадр фона
+   отбирал бы фпс у игры. Звёзды рисуются один раз, слой
+   вынесен в отдельную композицию — перерисовка сетки груза
+   (до 12 раз в секунду) его не задевает. В мини-окне поверх
+   игры фон отключается совсем.
+   ========================================================= */
+
+.space-bg {
+  position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none;
+  isolation: isolate; transform: translateZ(0); contain: layout paint;
+  background: radial-gradient(120% 90% at 50% -10%, #0d1526 0%, #070a11 45%, #04060a 100%);
+}
+/* Радиальные градиенты и так мягкие, поэтому blur не нужен: он дорогой при перерисовке. */
+.space-neb { position: absolute; border-radius: 50%; opacity: 0.5; mix-blend-mode: screen; }
+.space-neb.n1 { width: 46vw; height: 46vw; left: -8vw; top: -6vw;
+  background: radial-gradient(circle, rgba(88, 140, 255, 0.55), transparent 65%); }
+.space-neb.n2 { width: 38vw; height: 38vw; right: -6vw; top: 16vh;
+  background: radial-gradient(circle, rgba(242, 194, 48, 0.30), transparent 65%); }
+.space-neb.n3 { width: 54vw; height: 54vw; left: 20vw; bottom: -24vw;
+  background: radial-gradient(circle, rgba(122, 82, 220, 0.34), transparent 65%); }
+.space-grid { position: absolute; inset: -20%;
+  background: linear-gradient(rgba(130, 165, 255, 0.07) 1px, transparent 1px) 0 0 / 46px 46px,
+              linear-gradient(90deg, rgba(130, 165, 255, 0.07) 1px, transparent 1px) 0 0 / 46px 46px; }
+.space-stars { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+body.mini .space-bg { display: none; }
+
+/* ---------- интерфейс поверх космоса ---------- */
+
+/* Липкая шапка: без backdrop-filter (он пересчитывается при каждой перерисовке под шапкой). */
+.nav { background: rgba(6, 8, 13, 0.86); backdrop-filter: none; border-bottom-color: rgba(130, 165, 255, 0.16);
+  box-shadow: 0 12px 30px -20px #000; }
+.brand-name { text-shadow: 0 0 26px rgba(242, 194, 48, 0.22); }
+.nav-tester { border: 1px solid rgba(130, 165, 255, 0.20); background: rgba(130, 165, 255, 0.07); }
+.nav-tester:hover { border-color: rgba(130, 165, 255, 0.4); color: var(--text); }
+
+/* Консоль — стекло над космосом, с тонкой световой линией сверху. */
+.console {
+  background: linear-gradient(180deg, rgba(23, 27, 24, 0.90), rgba(11, 15, 21, 0.94));
+  border-color: rgba(130, 165, 255, 0.22);
+  box-shadow: 0 0 0 1px rgba(242, 194, 48, 0.07), 0 34px 60px -34px rgba(0, 0, 0, 0.9),
+              0 0 90px -46px rgba(88, 140, 255, 0.45);
+}
+.console::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px; pointer-events: none;
+  border-top-left-radius: var(--r-lg); border-top-right-radius: var(--r-lg);
+  background: linear-gradient(90deg, transparent, rgba(242, 194, 48, 0.5) 22%, rgba(130, 165, 255, 0.45) 72%, transparent);
+}
+.console-title {
+  background: linear-gradient(92deg, #ffffff 10%, #cdd9ff 90%);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+}
+.console-title .i { color: var(--accent); -webkit-text-fill-color: var(--accent); }
+.console-bar, .wind-bar, .panel { border-bottom-color: rgba(130, 165, 255, 0.14); }
+.corner { border-color: var(--accent); box-shadow: 0 0 14px rgba(242, 194, 48, 0.35); }
+
+/* Кнопки и чипы: космическое стекло, акцент — золото. */
+.btn.primary { box-shadow: 0 0 0 1px rgba(242, 194, 48, 0.25), 0 0 26px -6px rgba(242, 194, 48, 0.35),
+                           0 12px 26px -14px rgba(0, 0, 0, 0.85); }
+.btn.ghost { background: rgba(130, 165, 255, 0.06); border-color: rgba(130, 165, 255, 0.24); }
+.btn.ghost:hover { background: rgba(130, 165, 255, 0.13); border-color: rgba(130, 165, 255, 0.45); color: #fff; }
+.chip { background: rgba(130, 165, 255, 0.06); border: 1px solid rgba(130, 165, 255, 0.22); color: var(--text-2); }
+.chip:hover { border-color: var(--accent-line); background: rgba(242, 194, 48, 0.10); }
+.chip[aria-checked="true"], .chip.on { background: var(--accent-soft); border-color: var(--accent-line); color: #ffe28d; }
+
+/* Осциллограмма: лёгкое затемнение по краям, чтобы звук читался как на приборе. */
+.scope { background: linear-gradient(180deg, rgba(88, 140, 255, 0.06), rgba(0, 0, 0, 0.18)); }
+.scope::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(120% 140% at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.35));
+}
+
+/* Карточки результатов и сетка — полупрозрачные, космос просвечивает. */
+.category, .set-card, .grid-card, .quiz {
+  background: linear-gradient(180deg, rgba(23, 27, 24, 0.80), rgba(13, 17, 22, 0.86));
+  border-color: rgba(130, 165, 255, 0.18);
+}
+.category-head { background: rgba(130, 165, 255, 0.05); }
+.summary { border: 1px solid rgba(130, 165, 255, 0.16); border-radius: var(--r);
+  background: rgba(130, 165, 255, 0.04); overflow: hidden; }
+.mgrid { background: rgba(4, 6, 10, 0.35); border-radius: 8px; }
+
+/* Окно выбора карты — то же стекло, фон вокруг чуть холоднее. */
+.map-dialog { background: linear-gradient(180deg, rgba(23, 27, 24, 0.96), rgba(11, 15, 21, 0.98));
+  border-color: rgba(130, 165, 255, 0.26); box-shadow: 0 40px 80px -30px rgba(0, 0, 0, 0.9); }
+.map-dialog::backdrop { background: rgba(4, 6, 11, 0.74); backdrop-filter: none; }

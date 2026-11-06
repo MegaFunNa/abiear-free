@@ -31,6 +31,15 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+  <!-- Космический фон — тот же, что на главной. Осознанно без анимаций: эта страница
+       работает рядом с игрой, и каждый кадр фона отбирал бы фпс у игры. Звёзды рисуются
+       один раз (см. скрипт в конце), слой вынесен в отдельную композицию. -->
+  <div class="space-bg" aria-hidden="true">
+    <span class="space-neb n1"></span><span class="space-neb n2"></span><span class="space-neb n3"></span>
+    <span class="space-grid"></span>
+    <canvas class="space-stars"></canvas>
+  </div>
+
   <!-- Иконки (Lucide, ISC) — используются и в разметке, и в JS через <use href="#i-…"> -->
   <svg id="sprite" width="0" height="0" style="position:absolute" aria-hidden="true">
     <defs>
@@ -157,5 +166,35 @@
   <script src="js/static-boot.js"></script>
   <script src="js/app.js"></script>
   <script src="js/logout.js"></script>
+
+  <script>
+  // Звёзды фона: один раз нарисовали и забыли. Никаких requestAnimationFrame —
+  // страница висит рядом с игрой, и лишний поток кадров отнимал бы фпс у игры.
+  (function () {
+    var cv = document.querySelector(".space-stars");
+    if (!cv || !cv.getContext) return;
+    var ctx = cv.getContext("2d");
+    function draw() {
+      var w = cv.clientWidth, h = cv.clientHeight;
+      if (!w || !h) return;
+      var dpr = Math.min(2, window.devicePixelRatio || 1);
+      cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+      var n = Math.min(900, Math.round(w * h / 5200));
+      for (var i = 0; i < n; i++) {
+        ctx.globalAlpha = Math.random() * 0.65 + 0.25;
+        ctx.beginPath();
+        ctx.arc(Math.random() * w, Math.random() * h, Math.random() * 1.15 + 0.25, 0, 6.2832);
+        ctx.fillStyle = i % 9 ? "#dfe8ff" : "#ffe9a8";
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+    draw();
+    var t = 0;
+    window.addEventListener("resize", function () { clearTimeout(t); t = setTimeout(draw, 300); });
+  })();
+  </script>
 </body>
 </html>
