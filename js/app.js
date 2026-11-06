@@ -4713,12 +4713,19 @@ engine.addEventListener("event", async (e) => {
     overlapped: scored.length,
     quiet: chosen.quiet,
     fresh: true,
+    topId,
     delay: e.detail.ncc ? NCC_DELAY_MS : OLD_DELAY_MS
   };
   const ranked = [...chosen.bySound ?? []].sort((a, b) => (b[1]?.score ?? 0) - (a[1]?.score ?? 0));
   const top3 = ranked.slice(0, 3).map(([id, m]) => `${id}:${(m?.score ?? 0).toFixed(2)}`).join(" ");
   const weak = accepted && (ranked[0]?.[1]?.score ?? 0) < WEAK_MATCH ? " · СЛАБОЕ совпадение" : "";
+  const topId = ranked[0]?.[0] ?? null;
   pushLog(`звук ${new Date(at).toLocaleTimeString("ru-RU")} пик ${chosen.peakDb.toFixed(1)} дБ ${accepted ? "ПРИНЯТ" : `отброшен (${reason})`} · звуки [${top3}] · порог ${state.minMatch}${weak}`);
+  const dup = accepted && topId != null && state.events.find((x) => x.enabled && x.topId === topId && Math.abs(x.at - at) <= DUP_MS);
+  if (dup) {
+    pushLog(`звук ${new Date(at).toLocaleTimeString("ru-RU")}: повтор звука ${topId} (${Math.round(at - dup.at)} мс) — вторым не считаю`);
+    return;
+  }
   if (!accepted) {
     state.rejected.unshift({ ...ev, enabled: false, rejected: true, reason });
     state.rejected.length = Math.min(state.rejected.length, MAX_REJECTED);
@@ -4921,6 +4928,8 @@ var FPS_IDLE = 10;
 var FPS_KEEP_MS = 5e3;
 var LABEL_TRIES = 4;
 var HOVER_LOG_MS = 8e3;
+var HOVER_MAX_MS = 1500;
+var DUP_MS = 1500;
 var grid = { busy: 0, lastAt: 0, seen: false, seenAt: 0, full: null, fullAt: 0, firstAt: 0, hardAt: 0, ocrAt: 0, hoverKey: null, hoverSince: 0, hoverSinceKey: null, hoverCell: null, hoverLog: [], journal: [], scans: 0, light: 0, found: 0, frame: "", inFrame: 0 };
 var LOG_LIMIT = 5e3;
 var logLines = [];
@@ -5223,17 +5232,20 @@ async function linkCargo(ev) {
       return linked();
     }
   }
-  const h = grid.hoverLog.filter((x) => x.key && x.at <= click - 50 && x.at >= click - 3300).at(-1);
+  const fresh = (x) => x.key && x.at <= click - 50 && x.at >= click - HOVER_MAX_MS;
+  const h = grid.hoverLog.filter(fresh).at(-1);
   g = h ? tracker.cargos.get(h.key) ?? null : null;
   if (g) gridLog(`звук ${when}: наведён груз ${g.key}${h.cell ? `, клетка ${h.cell.join(",")}` : ""} (история, −${Math.round(click - h.at)} мс до щелчка)`);
   else if (!grid.hoverLog.length) gridLog(`звук ${when}: история наведений пуста — подсветку не видели вообще`);
-  else gridLog(`звук ${when}: в истории наведений за 3,3 с до щелчка никого (${grid.hoverLog.length} записей, последняя −${Math.round(click - grid.hoverLog.at(-1).at)} мс, ключ ${grid.hoverLog.at(-1).key ?? "нет"})`);
+  else gridLog(`звук ${when}: в истории наведений за ${HOVER_MAX_MS / 1e3} с до щелчка никого (${grid.hoverLog.length} записей, последняя −${Math.round(click - grid.hoverLog.at(-1).at)} мс, ключ ${grid.hoverLog.at(-1).key ?? "нет"})`);
   const rd = grid.lastRead;
-  if (!g && rd && rd.at >= click - 3300 && rd.at <= click + 200) {
+  if (!g && rd && rd.at >= click - HOVER_MAX_MS && rd.at <= click + 200) {
     g = tracker.cargos.get(rd.key) ?? null;
     if (g) gridLog(`звук ${when}: перед щелчком читали подсказку груза ${g.key} (−${Math.round(click - rd.at)} мс) — привязал к нему`);
   }
-  const before = g ? [] : reader.frames.filter((f) => f.at <= click - 50 && f.at >= click - 3300).reverse().slice(0, 2);
+  const recent = grid.hoverLog.some(fresh);
+  const before = g || !recent ? [] : reader.frames.filter((f) => f.at <= click - 50 && f.at >= click - HOVER_MAX_MS).reverse().slice(0, 2);
+  if (!g && !recent) gridLog(`звук ${when}: свежего наведения нет (${HOVER_MAX_MS / 1e3} с) — к грузу не привязываю`);
   for (const f of before) {
     const det = await linkDetect(() => detectFrame(f));
     const hov = det?.cargos.find((c) => c.hover);
