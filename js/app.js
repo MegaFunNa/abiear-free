@@ -4939,7 +4939,7 @@ function saveLog() {
   const head = [
     `ABIEAR ${window.APP_VERSION ?? ""} — журнал`,
     `время: ${(/* @__PURE__ */ new Date()).toLocaleString("ru-RU")}`,
-    `профиль ${logNum(state.profileId)} · карта ${state.mapPick?.name ?? state.mapPick?.id ?? state.mapPick ?? "?"} · мин. совпадение ${state.minMatch}`,
+    `профиль ${logNum(state.profileId)} · карта ${state.mapPick ? `${state.mapPick.map} · ${state.mapPick.mode}` : "?"} · мин. совпадение ${state.minMatch}`,
     `кадр ${grid.frame || "?"} · сканов ${grid.scans} (лёгких ${grid.light}) · сетка ${tracker.locked ? "сохранена" : "не сохранена"}`,
     `звуков ${state.events.length} · отброшено ${state.rejectedCount} · грузов ${tracker.cargos.size}`,
     "",
@@ -5096,7 +5096,10 @@ function trackHover(det, frame, image) {
   if (hoverKey && hoverKey !== grid.hoverSinceKey) {
     grid.hoverSince = frame.at;
     grid.hoverSinceKey = hoverKey;
-    if (g) g.priceTries = 0;
+    if (g) {
+      g.priceTries = 0;
+      g.bigTries = 0;
+    }
   }
   if (hoverKey) grid.hoverLastAt = frame.at;
   else if (frame.at - (grid.hoverLastAt ?? 0) > HOVER_GAP_MS) grid.hoverSinceKey = null;
@@ -5692,6 +5695,9 @@ function onGridClick(e) {
 }
 $("grid").addEventListener("click", onGridClick);
 var HOVER_TRIES = 14;
+var BIG_TRIES = 3;
+var BIG_MAX_W = 1200;
+var BIG_MAX_H = 800;
 var HOVER_SCANS = 200;
 var TIP_WAIT_MS = 250;
 var HOVER_GAP_MS = 300;
@@ -5708,18 +5714,28 @@ function readHoverPrice(image, det, g, shift, tip) {
   if (!hov) return;
   const p = det.pitch;
   const grow = (g.priceTries ?? 0) >= 4 ? 0.9 : 0.3;
+  const big = !tip;
+  if (big && (g.bigTries ?? 0) >= BIG_TRIES) return;
   const box = tip ? { x0: tip.x0 - grow * p, y0: tip.y0 - grow * p, x1: tip.x1 + grow * p, y1: tip.y1 + grow * p } : { x0: hov.x0 - 5 * p, y0: hov.y0 - 3 * p, x1: hov.x1 + 6 * p, y1: hov.y1 + 4 * p };
-  const x0 = Math.max(0, Math.round(box.x0)), y0 = Math.max(0, Math.round(box.y0));
-  const x1 = Math.min(image.width, Math.round(box.x1)), y1 = Math.min(image.height, Math.round(box.y1));
+  let x0 = Math.max(0, Math.round(box.x0)), y0 = Math.max(0, Math.round(box.y0));
+  let x1 = Math.min(image.width, Math.round(box.x1)), y1 = Math.min(image.height, Math.round(box.y1));
+  if (big) {
+    const cx = x0 + x1 >> 1, cy = y0 + y1 >> 1;
+    x0 = Math.max(0, Math.max(x0, cx - (BIG_MAX_W >> 1)));
+    x1 = Math.min(image.width, Math.min(x1, cx + (BIG_MAX_W >> 1)));
+    y0 = Math.max(0, Math.max(y0, cy - (BIG_MAX_H >> 1)));
+    y1 = Math.min(image.height, Math.min(y1, cy + (BIG_MAX_H >> 1)));
+  }
   if (x1 - x0 < p || y1 - y0 < p) return;
   const small = p < SMALL_UI_PITCH;
-  const k = small ? Math.min(4, 144 / p) : Math.min(2, Math.max(1, 128 / p));
+  const k = big ? 1 : small ? Math.min(4, 144 / p) : Math.min(2, Math.max(1, 128 / p));
   const crop = document.createElement("canvas");
   crop.width = Math.round((x1 - x0) * k);
   crop.height = Math.round((y1 - y0) * k);
   const cg = crop.getContext("2d", { willReadFrequently: true });
   if (small) cg.imageSmoothingQuality = "high";
   cg.drawImage(image, x0, y0, x1 - x0, y1 - y0, 0, 0, crop.width, crop.height);
+  if (big) g.bigTries = (g.bigTries ?? 0) + 1;
   g.priceTries = (g.priceTries ?? 0) + 1;
   g.priceScans = (g.priceScans ?? 0) + 1;
   hoverOcr.busy = true;
