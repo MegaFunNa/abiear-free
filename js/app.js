@@ -4702,6 +4702,9 @@ engine.addEventListener("event", async (e) => {
     return;
   }
   const { chosen, scored, accepted, reason } = result;
+  const ranked = [...chosen.bySound ?? []].sort((a, b) => (b[1]?.score ?? 0) - (a[1]?.score ?? 0));
+  const top3 = ranked.slice(0, 3).map(([id, m]) => `${id}:${(m?.score ?? 0).toFixed(2)}`).join(" ");
+  const topId = ranked[0]?.[0] ?? null;
   const ev = {
     id: ++state.seq,
     at,
@@ -4717,10 +4720,7 @@ engine.addEventListener("event", async (e) => {
     topId,
     delay: e.detail.ncc ? NCC_DELAY_MS : OLD_DELAY_MS
   };
-  const ranked = [...chosen.bySound ?? []].sort((a, b) => (b[1]?.score ?? 0) - (a[1]?.score ?? 0));
-  const top3 = ranked.slice(0, 3).map(([id, m]) => `${id}:${(m?.score ?? 0).toFixed(2)}`).join(" ");
   const weak = accepted && (ranked[0]?.[1]?.score ?? 0) < WEAK_MATCH ? " · СЛАБОЕ совпадение" : "";
-  const topId = ranked[0]?.[0] ?? null;
   pushLog(`звук ${new Date(at).toLocaleTimeString("ru-RU")} пик ${chosen.peakDb.toFixed(1)} дБ ${accepted ? "ПРИНЯТ" : `отброшен (${reason})`} · звуки [${top3}] · порог ${state.minMatch}${weak}`);
   const dup = accepted && topId != null && state.events.find((x) => x.enabled && x.topId === topId && Math.abs(x.at - at) <= DUP_MS);
   if (dup) {
