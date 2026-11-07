@@ -744,6 +744,8 @@ body.mini .category-prob b { font-size: 14px; }
 .mini-pop-sum b { font: 600 14px/1 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text); }
 .mini-pop-sum b + span { margin-left: 6px; }
 .g-price.calc { opacity: 0.6; }
+/* Цена угадана по типу и размеру (подсказку не читали) — пишем с тильдой и чуть тише. */
+.g-price.guess { opacity: 0.78; }
 .mini-pop-red span::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 7px; border-radius: 50%; background: #ef4b4b; vertical-align: 0; }
 .mini-pop-red b { font: 600 16px/1 var(--font-mono); font-variant-numeric: tabular-nums; color: #ff6b6b; }
 /* Плитки вариантов: иконка (--pop-ic, до 64 px) с полоской по низу общей полосы (полоски редкости в ряду на одной линии),

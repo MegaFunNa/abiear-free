@@ -4218,6 +4218,7 @@ function syncPrices() {
       notePrice(g);
       continue;
     }
+    if (hoverOcr.busy && hoverOcr.key === g.key) continue;
     if (!seen || seen.size !== 1) continue;
     g.price = [...seen][0];
     g.priceGuess = true;
@@ -4713,19 +4714,12 @@ engine.addEventListener("event", async (e) => {
     overlapped: scored.length,
     quiet: chosen.quiet,
     fresh: true,
-    topId,
     delay: e.detail.ncc ? NCC_DELAY_MS : OLD_DELAY_MS
   };
   const ranked = [...chosen.bySound ?? []].sort((a, b) => (b[1]?.score ?? 0) - (a[1]?.score ?? 0));
   const top3 = ranked.slice(0, 3).map(([id, m]) => `${id}:${(m?.score ?? 0).toFixed(2)}`).join(" ");
   const weak = accepted && (ranked[0]?.[1]?.score ?? 0) < WEAK_MATCH ? " · СЛАБОЕ совпадение" : "";
-  const topId = ranked[0]?.[0] ?? null;
   pushLog(`звук ${new Date(at).toLocaleTimeString("ru-RU")} пик ${chosen.peakDb.toFixed(1)} дБ ${accepted ? "ПРИНЯТ" : `отброшен (${reason})`} · звуки [${top3}] · порог ${state.minMatch}${weak}`);
-  const dup = accepted && topId != null && state.events.find((x) => x.enabled && x.topId === topId && Math.abs(x.at - at) <= DUP_MS);
-  if (dup) {
-    pushLog(`звук ${new Date(at).toLocaleTimeString("ru-RU")}: повтор звука ${topId} (${Math.round(at - dup.at)} мс) — вторым не считаю`);
-    return;
-  }
   if (!accepted) {
     state.rejected.unshift({ ...ev, enabled: false, rejected: true, reason });
     state.rejected.length = Math.min(state.rejected.length, MAX_REJECTED);
@@ -4928,8 +4922,6 @@ var FPS_IDLE = 10;
 var FPS_KEEP_MS = 5e3;
 var LABEL_TRIES = 4;
 var HOVER_LOG_MS = 8e3;
-var HOVER_MAX_MS = 1500;
-var DUP_MS = 1500;
 var grid = { busy: 0, lastAt: 0, seen: false, seenAt: 0, full: null, fullAt: 0, firstAt: 0, hardAt: 0, ocrAt: 0, hoverKey: null, hoverSince: 0, hoverSinceKey: null, hoverCell: null, hoverLog: [], journal: [], scans: 0, light: 0, found: 0, frame: "", inFrame: 0 };
 var LOG_LIMIT = 5e3;
 var logLines = [];
@@ -5209,6 +5201,7 @@ async function linkCargo(ev) {
       const det = await linkDetect(() => detectFrame(f));
       const g2 = det && tracker.locateRed(det);
       if (g2) {
+        ev.how = "red";
         gridLog(`звук ${when}: красное на кадре +${f.at - ev.at} мс → груз ${g2.key}`);
         return g2;
       }
@@ -5217,6 +5210,7 @@ async function linkCargo(ev) {
   };
   const near = (f) => f.at > redFrom && (ev.delay || f.at <= click + RED_NEAR_MS) && mine(f);
   const redFrames = reader.frames.filter(near);
+  let boundHow = null;
   let g = await redIn(ev.delay ? redFrames.reverse() : redFrames);
   if (g) {
     placeCargo(ev, g);
@@ -5226,37 +5220,47 @@ async function linkCargo(ev) {
   if (flow.holdKey && flow.holdSeen >= ev.at - 1500 && flow.holdSeen <= ev.at + 400) {
     g = tracker.cargos.get(flow.holdKey) ?? null;
     if (g) {
+      ev.how = "hold";
       gridLog(`звук ${when}: груз ${g.key} держали в руке (красное) — привязал к нему`);
       placeCargo(ev, g);
       update();
       return linked();
     }
   }
-  const fresh = (x) => x.key && x.at <= click - 50 && x.at >= click - HOVER_MAX_MS;
-  const h = grid.hoverLog.filter(fresh).at(-1);
+  const h = grid.hoverLog.filter((x) => x.key && x.at <= click - 50 && x.at >= click - 3300).at(-1);
   g = h ? tracker.cargos.get(h.key) ?? null : null;
-  if (g) gridLog(`звук ${when}: наведён груз ${g.key}${h.cell ? `, клетка ${h.cell.join(",")}` : ""} (история, −${Math.round(click - h.at)} мс до щелчка)`);
-  else if (!grid.hoverLog.length) gridLog(`звук ${when}: история наведений пуста — подсветку не видели вообще`);
-  else gridLog(`звук ${when}: в истории наведений за ${HOVER_MAX_MS / 1e3} с до щелчка никого (${grid.hoverLog.length} записей, последняя −${Math.round(click - grid.hoverLog.at(-1).at)} мс, ключ ${grid.hoverLog.at(-1).key ?? "нет"})`);
+  if (g) {
+    boundHow = "hover";
+    gridLog(`звук ${when}: наведён груз ${g.key}${h.cell ? `, клетка ${h.cell.join(",")}` : ""} (история, −${Math.round(click - h.at)} мс до щелчка)`);
+  } else if (!grid.hoverLog.length) gridLog(`звук ${when}: история наведений пуста — подсветку не видели вообще`);
+  else gridLog(`звук ${when}: в истории наведений за 3,3 с до щелчка никого (${grid.hoverLog.length} записей, последняя −${Math.round(click - grid.hoverLog.at(-1).at)} мс, ключ ${grid.hoverLog.at(-1).key ?? "нет"})`);
   const rd = grid.lastRead;
-  if (!g && rd && rd.at >= click - HOVER_MAX_MS && rd.at <= click + 200) {
+  if (!g && rd && rd.at >= click - 3300 && rd.at <= click + 200) {
     g = tracker.cargos.get(rd.key) ?? null;
-    if (g) gridLog(`звук ${when}: перед щелчком читали подсказку груза ${g.key} (−${Math.round(click - rd.at)} мс) — привязал к нему`);
+    if (g) {
+      boundHow = "read";
+      gridLog(`звук ${when}: перед щелчком читали подсказку груза ${g.key} (−${Math.round(click - rd.at)} мс) — привязал к нему`);
+    }
   }
-  const recent = grid.hoverLog.some(fresh);
-  const before = g || !recent ? [] : reader.frames.filter((f) => f.at <= click - 50 && f.at >= click - HOVER_MAX_MS).reverse().slice(0, 2);
-  if (!g && !recent) gridLog(`звук ${when}: свежего наведения нет (${HOVER_MAX_MS / 1e3} с) — к грузу не привязываю`);
+  const before = g ? [] : reader.frames.filter((f) => f.at <= click - 50 && f.at >= click - 3300).reverse().slice(0, 2);
   for (const f of before) {
     const det = await linkDetect(() => detectFrame(f));
     const hov = det?.cargos.find((c) => c.hover);
     g = hov && tracker.locate(det, hov);
     gridLog(`звук ${when}: кадр −${ev.at - f.at} мс, ${!det ? "сетки нет" : !hov ? "подсветки нет" : g ? `наведён груз ${g.key}` : "груз не найден в сетке"}`);
-    if (g) break;
+    if (g) {
+      boundHow = "frame";
+      break;
+    }
   }
   if (g) {
+    ev.how = boundHow;
     placeCargo(ev, g);
     update();
-  } else gridLog(`звук ${when}: ГРУЗ НЕ НАЙДЕН — звук остался без привязки (шансы посчитаны «по любому грузу»)`);
+  } else {
+    ev.how = null;
+    gridLog(`звук ${when}: ГРУЗ НЕ НАЙДЕН — звук остался без привязки (шансы посчитаны «по любому грузу»)`);
+  }
   linked();
   if (!ev.delay) return;
   const until = Date.now() + RED_WAIT_MS;
@@ -5264,6 +5268,7 @@ async function linkCargo(ev) {
     await new Promise((r) => setTimeout(r, 400));
     const red = await redIn(reader.frames.filter((f) => near(f) && !tried.has(f)));
     if (red) {
+      ev.how = "red";
       if (red !== ev.cargo) {
         placeCargo(ev, red);
         update();
@@ -5472,7 +5477,7 @@ function heardItemsCalc(g, events) {
     g.logGem = gemKey;
     const redAll = rows.length ? rows.reduce((sum, r) => sum + (r.item.rarity >= RED_RARITY ? r.p : 0), 0) : 0;
     if (redAll >= 0.9995 && !gemOk(g)) {
-      pushLog(`груз ${g.key}: алмаз НЕ показан — звук ${best.toFixed(2)}${g.priceGuess ? ", цена угадана по соседним клеткам" : ""}, тип ${g.typeId ?? "?"}`);
+      pushLog(`груз ${g.key}: алмаз НЕ показан — звук ${best.toFixed(2)}${g.priceGuess ? ", цена угадана по соседним клеткам" : ""}${verified(g) ? "" : ", красное на грузе не видели"}, тип ${g.typeId ?? "?"}`);
     }
   }
   const byItem = /* @__PURE__ */ new Map();
@@ -5529,8 +5534,10 @@ var ICON_GAP = 2;
 var ICON_STRIP = 4;
 var TITLE_ITEMS = 12;
 var GEM_GUESS_MATCH = 0.85;
+var verified = (g) => (g?.events ?? []).some((e) => e.how === "red" || e.how === "hold");
 var gemOk = (g) => {
   if (!g || g.typeId == null || g.price == null) return false;
+  if (!verified(g)) return false;
   const score = g.bestScore ?? 0;
   return score >= (g.priceGuess ? GEM_GUESS_MATCH : WEAK_MATCH);
 };
@@ -5552,7 +5559,7 @@ function iconGrid(aspects, extra, W, H) {
   }
   return best;
 }
-function heardHtml(heard, box, price = null, blink = 0, stripH = 0, solid = true) {
+function heardHtml(heard, box, price = null, blink = 0, stripH = 0, solid = true, approx = false) {
   const { W, H } = box;
   const bad = (x) => !x.ok;
   const { redP, red } = cargoMarks(heard);
@@ -5583,10 +5590,10 @@ function heardHtml(heard, box, price = null, blink = 0, stripH = 0, solid = true
     return `<span class="g-heard" style="left:${left}px;top:${top}px;width:${width}px;--cw:${cw}px;--ch:${ch}px">${cells.join("")}</span>`;
   };
   if (red) {
-    const pc = pct(redP), wide = W >= 64;
+    const pc = (approx ? "~" : "") + pct(redP), wide = W >= 64;
     const html = wide ? `RED&nbsp;${pc}` : pc;
     const rFs = Math.max(12, Math.min(24, (W - 6) / ((wide ? `RED ${pc}` : pc).length * 0.62)));
-    const bl = redP >= RED_MIN ? " blink" : "", delay = redP >= RED_MIN ? `animation-delay:${blink}ms` : "";
+    const bl = redP >= RED_MIN && !approx ? " blink" : "", delay = bl ? `animation-delay:${blink}ms` : "";
     const fsz = `font-size:${rFs.toFixed(1)}px;`;
     if (!goodCrate) return over(html, `g-redchance${bl}`, fsz + delay);
     const PH = Math.min(Math.max(16, Math.round(rFs * 1.15) + 6), Math.max(16, H - 16));
@@ -5598,7 +5605,7 @@ function heardHtml(heard, box, price = null, blink = 0, stripH = 0, solid = true
 }
 function priceTag(g, rows, mini) {
   if (!mini || g.w * g.h > 1) {
-    if (g.price != null) return `<span class="g-price">${shortPrice(g.price)}</span>`;
+    if (g.price != null) return g.priceGuess ? `<span class="g-price guess" title="${esc(L("цена угадана по типу и размеру — подсказку не читали", "price guessed from type and size — the tooltip was not read"))}">~${shortPrice(g.price)}</span>` : `<span class="g-price">${shortPrice(g.price)}</span>`;
     const calc = rows?.find((r) => r.cargoPrice != null)?.cargoPrice ?? null;
     if (calc != null) return `<span class="g-price calc" title="${esc(L("цена не прочитана с экрана — расчётная", "price not read from screen — estimated"))}">≈${shortPrice(calc)}</span>`;
   }
@@ -5635,12 +5642,13 @@ function gridHtml(mini = false, cell = GRID_CELL_MIN) {
     const cls = ["g-cargo", `tier${tier}`, heard && "heard", red && "red", gold && "gold", g.key === cur && "cur", g.key === grid.hoverKey && "now"].filter(Boolean).join(" ");
     const title = [
       [cargoName(g) ?? L("Тип не прочитан", "Type not read"), g.price != null && fmt(g.price), `${g.w}×${g.h}`].filter(Boolean).join(" · "),
+      ...rows?.length && !verified(g) ? [L("звук привязан по наведению — красное на грузе не видели, это оценка", "sound bound by hover — no red on this cargo, this is an estimate")] : [],
       ...(heard ?? []).slice(0, TITLE_ITEMS).map((x) => `${x.item.name} ${pct(x.p)}`),
       heard?.length > TITLE_ITEMS && `+${heard.length - TITLE_ITEMS}`
     ].filter(Boolean).join("\n");
     const box = { ...pad, W: g.w * cell + (g.w - 1) * gap - 2 - 2 * pad.s, H: g.h * cell + (g.h - 1) * gap - 2 - pad.t - pad.b };
     out.push(`<button class="${cls}" data-cargo="${g.key}" title="${esc(title)}" style="grid-area:${g.r - r0 + 1}/${g.q + 1}/span ${g.h}/span ${g.w}${red ? `;animation-delay:${blink}ms` : ""}">
-      ${rows?.length ? heardHtml(rows, box, g.price, blink, strip, gemOk(g)) : `<span class="g-label">${esc(mini ? short : cargoName(g) ?? "")}</span>`}
+      ${rows?.length ? heardHtml(rows, box, g.price, blink, strip, gemOk(g), !verified(g)) : `<span class="g-label">${esc(mini ? short : cargoName(g) ?? "")}</span>`}
       ${rows?.length && stats.good && marks.redP < 0.9995 ? `<span class="g-chance${mini ? " tiny" : ""}" style="color:${pay >= 0.5 ? "#7ee787" : "#e8c46b"};font-size:${cFs.toFixed(1)}px">${cTxt}</span>` : ""}
       ${mini ? "" : `<span class="g-size">${g.w}×${g.h}</span>`}
       ${priceTag(g, rows, mini)}
@@ -5757,15 +5765,19 @@ function readHoverPrice(image, det, g, shift, tip) {
   const t0 = performance.now(), how = `${tip ? "плашка" : "кусок"} ${crop.width}×${crop.height} ${mode}`;
   reader.recognize(crop, mode).then((lines) => {
     const ms = Math.round(performance.now() - t0);
-    if (tracker.cargos.get(g.key) !== g || g.price != null) return;
+    if (tracker.cargos.get(g.key) !== g || g.price != null && !g.priceGuess) return;
     const found = reader.parse(lines, state.profileId, (v) => cargoFits(g, g.typeId, v));
     if (!found || g.typeId != null && found.typeId != null && found.typeId !== g.typeId) {
       if (!lines.some((l) => /\d[\d  ,.]{2,}\d/.test(l.text))) g.priceTries--;
       gridLog(`наведён ${g.key}: цену не прочитал (${g.priceTries}/${HOVER_TRIES}; ${how}, ${ms} мс)`);
       return;
     }
+    const wasGuess = g.priceGuess ? g.price : null;
     g.price = found.price;
     g.priceGuess = false;
+    if (wasGuess != null && wasGuess !== found.price) {
+      gridLog(`груз ${g.key}: цена ${fmt(wasGuess)} заменена на измеренную ${fmt(found.price)}`);
+    }
     notePrice(g);
     grid.lastRead = { key: g.key, at: Date.now() };
     if (g.typeId == null && found.typeId != null) g.typeId = found.typeId;
