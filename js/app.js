@@ -1595,7 +1595,9 @@ var AudioEngine = class extends EventTarget {
       // Кадр крупнее 1600×1000 не нужен: цену и подписи распознаватель всё равно приводит к одной
       // высоте текста (коэффициенты k в ocr.js и grid-labels.js), а памяти и процессора на кадр
       // 1920×1200 уходит на треть больше — из-за этого в игре падал фпс.
-      video: { displaySurface: "window", frameRate: { ideal: 30 }, width: { max: 1600 }, height: { max: 1e3 } },
+      // cursor: "always" — просим браузер захватывать и мышь: по её положению на кадре клетка под
+      // курсором находится точно, без догадок по яркости подсветки.
+      video: { displaySurface: "window", frameRate: { ideal: 30 }, width: { max: 1600 }, height: { max: 1e3 }, cursor: "always" },
       audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, suppressLocalAudioPlayback: false },
       systemAudio: "include",
       // Если браузер умеет — при выборе окна брать звук только этого окна (иначе Windows отдаёт звук всей системы).
@@ -1797,7 +1799,10 @@ var AudioEngine = class extends EventTarget {
     this.rainRun = 0;
     this.setRain(false);
   }
-  push(block) {
+  push(msg) {
+    const block = ArrayBuffer.isView(msg) ? msg : msg.b;
+    const rate = this.ctx.sampleRate || SAMPLE_RATE;
+    if (msg.t != null && this.epochMs == null) this.epochMs = Date.now() - msg.t * 1e3;
     if (this.nccReady) {
       if (this.nccInline) {
         const hits = this.nccInline.feed(Float32Array.from(block));
@@ -1819,11 +1824,16 @@ var AudioEngine = class extends EventTarget {
       this.recPos = (this.recPos + 1) % this.recBuf.length;
     }
     this.recFilled = Math.min(this.recBuf.length, this.recFilled + block.length);
-    const merged = new Float32Array(this.pending.length + block.length);
+    const pending = this.pending.length;
+    const merged = new Float32Array(pending + block.length);
     merged.set(this.pending);
-    merged.set(block, this.pending.length);
+    merged.set(block, pending);
+    const startAt = msg.t != null && this.epochMs != null ? msg.t - pending / rate : null;
     let off = 0;
-    for (; off + FFT_SIZE <= merged.length; off += HOP) this.onFrame(this.fx.frame(merged, off));
+    for (; off + FFT_SIZE <= merged.length; off += HOP) {
+      if (startAt != null) this.audioMs = Math.round(this.epochMs + (startAt + off / rate) * 1e3);
+      this.onFrame(this.fx.frame(merged, off));
+    }
     this.pending = merged.slice(off);
   }
   onFrame(frame) {
@@ -1905,8 +1915,10 @@ var AudioEngine = class extends EventTarget {
     const t0 = performance.now();
     const { scores, data: data2 } = matchSegment(frames, this.activeTemplates(frames.windDb), this.frameSeconds);
     const peakDb = Math.max(...frames.map((f) => f.energyDb));
+    const now = Date.now();
+    const at = this.audioMs != null && Math.abs(this.audioMs - now) < 4e3 ? this.audioMs : now;
     const quiet = frames.windDb > 0 && peakDb <= frames.floorDb + this.thresholdDb;
-    const result = { scores, data: data2, frames, peakDb, quiet, at: Date.now(), ms: performance.now() - t0 };
+    const result = { scores, data: data2, frames, peakDb, quiet, at, lag: now - at, ms: performance.now() - t0 };
     if (!this.group) this.group = [];
     if (scores.length) this.group.push(result);
     if (!this.windows.length) {
@@ -2748,7 +2760,7 @@ function detectGrid(canvas, hint = null) {
     c.hover = c === hov?.c;
     delete c.tone;
   }
-  return { pitch, xs, ys, rows, cells, cargos, red, fills, tips, vEdges, hEdges, dropped, comb: { off: gx.off, p: gx.p, v: gx.v } };
+  return { pitch, xs, ys, rows, cells, cargos, red, fills, tips, vEdges, hEdges, dropped, cursor: findCursor(L2, W, H, xs, ys, rows), comb: { off: gx.off, p: gx.p, v: gx.v } };
 }
 function cellStats(L2, px, W, x0, x1, y0, y1, pitch) {
   const m = Math.round(pitch * 0.12), v = [], rg = [], bg = [], lo = [];
@@ -2895,7 +2907,8 @@ function detectLight(canvas, prev, ox, oy) {
   }
   if (differ > Math.max(2, (same + differ) * 0.1)) return null;
   const back = (t) => t && { x0: t.x0 + ox, y0: t.y0 + oy, x1: t.x1 + ox, y1: t.y1 + oy };
-  return { light: true, pitch, xs: prev.xs, ys: prev.ys, rows, cells, cargos: [], red, fills, tips: tips.map(back) };
+  const cu = findCursor(L2, W, H, xs, ys, rows);
+  return { light: true, pitch, xs: prev.xs, ys: prev.ys, rows, cells, cargos: [], red, fills, tips: tips.map(back), cursor: cu ? { x: cu.x + ox, y: cu.y + oy } : null };
 }
 function tipHide(t, lum, W, pitch, xs) {
   const w = t.x1 - t.x0, h = t.y1 - t.y0;
@@ -2906,6 +2919,56 @@ function tipHide(t, lum, W, pitch, xs) {
     if (lum(x, y) >= 150) white++;
   }
   return all > 0 && white / all >= 0.012;
+}
+var CURSOR_LUM = 205;
+var CURSOR_MIN_PX = 12;
+var CURSOR_MAX_PX = 1500;
+var CURSOR_W = 42;
+var CURSOR_H = 54;
+function findCursor(L2, W, H, xs, ys, rows) {
+  const x0 = Math.max(0, Math.round(xs[0])), x1 = Math.min(W - 1, Math.round(xs[GRID_COLS]));
+  const y0 = Math.max(0, Math.round(ys[0])), y1 = Math.min(H - 1, Math.round(ys[rows]));
+  const cols = x1 - x0 + 1, rowsN = y1 - y0 + 1;
+  if (cols < 12 || rowsN < 12) return null;
+  const rowN = new Int32Array(y1 + 2), colN = new Int32Array(x1 + 2);
+  let total = 0;
+  for (let y = y0; y <= y1; y++) {
+    const r = y * W;
+    for (let x = x0; x <= x1; x++) if (L2[r + x] >= CURSOR_LUM) {
+      rowN[y]++;
+      colN[x]++;
+      total++;
+    }
+  }
+  if (total < CURSOR_MIN_PX || total > CURSOR_MAX_PX) return null;
+  const band = (arr, from, to, win) => {
+    let sum = 0;
+    for (let i = from; i < from + win && i <= to; i++) sum += arr[i];
+    let best = sum, at = from;
+    for (let i = from + win; i <= to; i++) {
+      sum += arr[i] - arr[i - win];
+      if (sum > best) {
+        best = sum;
+        at = i - win + 1;
+      }
+    }
+    return { at, n: best };
+  };
+  const bh = band(rowN, y0, y1, Math.min(CURSOR_H, rowsN));
+  const bw = band(colN, x0, x1, Math.min(CURSOR_W, cols));
+  if (bh.n < CURSOR_MIN_PX || bw.n < 4) return null;
+  const bx0 = bw.at, bx1 = Math.min(x1, bw.at + CURSOR_W - 1), by1 = Math.min(y1, bh.at + CURSOR_H - 1);
+  for (let y = bh.at; y <= by1; y++) {
+    let n = 0, sx = 0;
+    for (let x = bx0; x <= bx1; x++) if (L2[y * W + x] >= CURSOR_LUM) {
+      n++;
+      sx += x;
+    }
+    if (!n) continue;
+    if (n > 4) return null;
+    return { x: Math.round(sx / n), y };
+  }
+  return null;
 }
 function findTips(lum, W, H, xs, ys, pitch) {
   const minRun = pitch * 0.6, from = Math.max(0, Math.round(xs[0] - 6 * pitch));
@@ -4742,10 +4805,12 @@ engine.addEventListener("event", async (e) => {
     quiet: chosen.quiet,
     fresh: true,
     topId,
-    delay: e.detail.ncc ? NCC_DELAY_MS : OLD_DELAY_MS
+    delay: e.detail.ncc ? NCC_DELAY_MS : OLD_DELAY_MS,
+    lag: chosen.lag ?? 0
   };
   const weak = accepted && (ranked[0]?.[1]?.score ?? 0) < WEAK_MATCH ? " · СЛАБОЕ совпадение" : "";
-  pushLog(`звук ${new Date(at).toLocaleTimeString("ru-RU")} пик ${chosen.peakDb.toFixed(1)} дБ ${accepted ? "ПРИНЯТ" : `отброшен (${reason})`} · звуки [${top3}] · порог ${state.minMatch}${weak}`);
+  const lagTxt = chosen.lag >= 120 ? ` · обработка опоздала на ${chosen.lag} мс` : "";
+  pushLog(`звук ${new Date(at).toLocaleTimeString("ru-RU")} пик ${chosen.peakDb.toFixed(1)} дБ ${accepted ? "ПРИНЯТ" : `отброшен (${reason})`} · звуки [${top3}] · порог ${state.minMatch}${weak}${lagTxt}`);
   const dup = accepted && topId != null && state.events.find((x) => x.enabled && x.topId === topId && Math.abs(x.at - at) <= DUP_MS);
   if (dup) {
     pushLog(`звук ${new Date(at).toLocaleTimeString("ru-RU")}: повтор звука ${topId} (${Math.round(at - dup.at)} мс) — вторым не считаю`);
@@ -5112,13 +5177,25 @@ function seenGrid(frame, det) {
   grid.frame = `${frame.bitmap.width}×${frame.bitmap.height}`;
   reader.setRate(frame.at - grid.seenAt < FPS_KEEP_MS ? scanCfg().fps : FPS_IDLE);
 }
+function cargoUnder(det, x, y, shift) {
+  const cell = tracker.cellAt(det, x, y, shift);
+  if (!cell) return null;
+  const k = `${cell[0]},${cell[1]}`;
+  for (const g of tracker.cargos.values()) if (cellsOf(g).includes(k)) return g;
+  return null;
+}
 function trackHover(det, frame, image) {
   const shift = tracker.matchShift(det) ?? tracker.shift;
   const hov = det.cargos.find((c) => c.hover);
   const near = hov ? tracker.locate(det, hov, shift) : null;
   const own = tracker.hoverOf(det, shift);
   const heldNow = tracker.locked ? tracker.locateRed(det, shift) : null;
-  let g = own ? own.g : near;
+  let g = null;
+  if (det.cursor && !heldNow) {
+    g = cargoUnder(det, det.cursor.x, det.cursor.y, shift);
+    if (g && g.key !== grid.hoverKey) gridLog(`наведение по курсору: груз ${g.key}`);
+  }
+  if (!g) g = own ? own.g : near;
   if (!g && !heldNow && det.tips?.length) {
     for (const c of tracker.cargos.values()) {
       if (!tracker.tipCell(det, c, shift, true)) continue;

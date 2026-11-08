@@ -481,7 +481,7 @@
       c.hover = c === hov?.c;
       delete c.tone;
     }
-    return { pitch, xs, ys, rows, cells, cargos, red, fills, tips, vEdges, hEdges, dropped, comb: { off: gx.off, p: gx.p, v: gx.v } };
+    return { pitch, xs, ys, rows, cells, cargos, red, fills, tips, vEdges, hEdges, dropped, cursor: findCursor(L, W, H, xs, ys, rows), comb: { off: gx.off, p: gx.p, v: gx.v } };
   }
   function cellStats(L, px, W, x0, x1, y0, y1, pitch) {
     const m = Math.round(pitch * 0.12), v = [], rg = [], bg = [], lo = [];
@@ -585,6 +585,56 @@
       if (lum(x, y) >= 150) white++;
     }
     return all > 0 && white / all >= 0.012;
+  }
+  var CURSOR_LUM = 205;
+  var CURSOR_MIN_PX = 12;
+  var CURSOR_MAX_PX = 1500;
+  var CURSOR_W = 42;
+  var CURSOR_H = 54;
+  function findCursor(L, W, H, xs, ys, rows) {
+    const x0 = Math.max(0, Math.round(xs[0])), x1 = Math.min(W - 1, Math.round(xs[GRID_COLS]));
+    const y0 = Math.max(0, Math.round(ys[0])), y1 = Math.min(H - 1, Math.round(ys[rows]));
+    const cols = x1 - x0 + 1, rowsN = y1 - y0 + 1;
+    if (cols < 12 || rowsN < 12) return null;
+    const rowN = new Int32Array(y1 + 2), colN = new Int32Array(x1 + 2);
+    let total = 0;
+    for (let y = y0; y <= y1; y++) {
+      const r = y * W;
+      for (let x = x0; x <= x1; x++) if (L[r + x] >= CURSOR_LUM) {
+        rowN[y]++;
+        colN[x]++;
+        total++;
+      }
+    }
+    if (total < CURSOR_MIN_PX || total > CURSOR_MAX_PX) return null;
+    const band = (arr, from, to, win) => {
+      let sum = 0;
+      for (let i = from; i < from + win && i <= to; i++) sum += arr[i];
+      let best = sum, at = from;
+      for (let i = from + win; i <= to; i++) {
+        sum += arr[i] - arr[i - win];
+        if (sum > best) {
+          best = sum;
+          at = i - win + 1;
+        }
+      }
+      return { at, n: best };
+    };
+    const bh = band(rowN, y0, y1, Math.min(CURSOR_H, rowsN));
+    const bw = band(colN, x0, x1, Math.min(CURSOR_W, cols));
+    if (bh.n < CURSOR_MIN_PX || bw.n < 4) return null;
+    const bx0 = bw.at, bx1 = Math.min(x1, bw.at + CURSOR_W - 1), by1 = Math.min(y1, bh.at + CURSOR_H - 1);
+    for (let y = bh.at; y <= by1; y++) {
+      let n = 0, sx = 0;
+      for (let x = bx0; x <= bx1; x++) if (L[y * W + x] >= CURSOR_LUM) {
+        n++;
+        sx += x;
+      }
+      if (!n) continue;
+      if (n > 4) return null;
+      return { x: Math.round(sx / n), y };
+    }
+    return null;
   }
   function findTips(lum, W, H, xs, ys, pitch) {
     const minRun = pitch * 0.6, from = Math.max(0, Math.round(xs[0] - 6 * pitch));
@@ -1867,7 +1917,7 @@
     }
   };
 
-  // ../../../tmp/tmphp1jxirs/test-api-entry.js
+  // ../../../tmp/tmpijo3jc3s/test-api-entry.js
   window.__TEST_API = {
     grid: { detectGrid, GRID_COLS },
     features: { FeatureExtractor },
