@@ -2899,8 +2899,7 @@ function detectLight(canvas, prev, ox, oy) {
 }
 function tipHide(t, lum, W, pitch, xs) {
   const w = t.x1 - t.x0, h = t.y1 - t.y0;
-  const hMax = (w > 3 * pitch ? 2.6 : 4.5) * pitch;
-  if (w > Math.min(6 * pitch, (xs[GRID_COLS] - xs[0]) * 0.75) || h > hMax || h < 0.35 * pitch) return false;
+  if (w > Math.min(6 * pitch, (xs[GRID_COLS] - xs[0]) * 0.75) || h > 2.6 * pitch || h < 0.35 * pitch) return false;
   let white = 0, all = 0;
   for (let y = Math.round(t.y0); y < t.y1; y += 2) for (let x = Math.round(t.x0); x < t.x1; x += 2) {
     all++;
@@ -3291,7 +3290,8 @@ var GridTracker = class {
   // подсказка открывается в другую сторону — тогда берём тот угол, что лежит на грузе.
   // Чёрных плашек на кадре может быть несколько: подсказка — та, у которой угол на грузе.
   // { cell, tip } или null.
-  tipCell(det, g, shift = this.shift) {
+  // strict — только когда угол плашки точно внутри клеток груза, без «почти касается».
+  tipCell(det, g, shift = this.shift, strict = false) {
     if (!det.tips?.length || !g) return null;
     const own = new Set(cellsOf(g));
     for (const t of det.tips) {
@@ -3300,6 +3300,7 @@ var GridTracker = class {
         if (c && own.has(`${c[0]},${c[1]}`)) return { cell: c, tip: t };
       }
     }
+    if (strict) return null;
     const r = this.rectOf(det, g, shift);
     if (r) {
       let best = null;
@@ -4953,7 +4954,7 @@ var FPS_KEEP_MS = 5e3;
 var LABEL_TRIES = 4;
 var HOVER_LOG_MS = 8e3;
 var HOVER_MAX_MS = 1500;
-var DUP_MS = 500;
+var DUP_MS = 1500;
 var grid = { busy: 0, lastAt: 0, seen: false, seenAt: 0, full: null, fullAt: 0, firstAt: 0, hardAt: 0, ocrAt: 0, hoverKey: null, hoverSince: 0, hoverSinceKey: null, hoverCell: null, hoverLog: [], journal: [], scans: 0, light: 0, found: 0, frame: "", inFrame: 0 };
 var LOG_LIMIT = 5e3;
 var logLines = [];
@@ -5119,8 +5120,10 @@ function trackHover(det, frame, image) {
   const heldNow = tracker.locked ? tracker.locateRed(det, shift) : null;
   let g = own ? own.g : near;
   if (!g && !heldNow && det.tips?.length) {
-    for (const c of tracker.cargos.values()) if (tracker.tipCell(det, c, shift)) {
+    for (const c of tracker.cargos.values()) {
+      if (!tracker.tipCell(det, c, shift, true)) continue;
       g = c;
+      if (c.key !== grid.hoverKey) gridLog(`наведение по подсказке: груз ${c.key}`);
       break;
     }
   }
@@ -5636,9 +5639,9 @@ function heardHtml(heard, box, price = null, blink = 0, stripH = 0, solid = true
     const rFs = Math.max(12, Math.min(24, (W - 6) / ((wide ? `RED ${pc}` : pc).length * 0.62)));
     const bl = redP >= RED_MIN && !approx ? " blink" : "", delay = bl ? `animation-delay:${blink}ms` : "";
     const fsz = `font-size:${rFs.toFixed(1)}px;`;
-    if (!goodCrate) return iconsIn(box) + over(html, `g-redchance${bl}`, fsz + delay);
     const PH = Math.min(Math.max(16, Math.round(rFs * 1.15) + 6), Math.max(16, H - 16));
     const plate = `<span class="g-redchance${bl}" style="left:${box.s}px;top:${box.t + H - PH}px;width:${W}px;height:${PH}px;${fsz}${delay}">${html}</span>`;
+    if (!goodCrate) return iconsIn(H - PH >= 26 ? { ...box, H: H - PH } : box) + plate;
     return iconsIn(box) + plate;
   }
   const sh = Math.min(stripH, Math.max(0, H - 30));

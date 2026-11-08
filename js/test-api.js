@@ -578,8 +578,7 @@
   }
   function tipHide(t, lum, W, pitch, xs) {
     const w = t.x1 - t.x0, h = t.y1 - t.y0;
-    const hMax = (w > 3 * pitch ? 2.6 : 4.5) * pitch;
-    if (w > Math.min(6 * pitch, (xs[GRID_COLS] - xs[0]) * 0.75) || h > hMax || h < 0.35 * pitch) return false;
+    if (w > Math.min(6 * pitch, (xs[GRID_COLS] - xs[0]) * 0.75) || h > 2.6 * pitch || h < 0.35 * pitch) return false;
     let white = 0, all = 0;
     for (let y = Math.round(t.y0); y < t.y1; y += 2) for (let x = Math.round(t.x0); x < t.x1; x += 2) {
       all++;
@@ -1868,7 +1867,7 @@
     }
   };
 
-  // ../../../tmp/tmp17zolvnk/test-api-entry.js
+  // ../../../tmp/tmpcw3c50w5/test-api-entry.js
   window.__TEST_API = {
     grid: { detectGrid, GRID_COLS },
     features: { FeatureExtractor },
