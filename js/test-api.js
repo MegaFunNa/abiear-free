@@ -578,7 +578,8 @@
   }
   function tipHide(t, lum, W, pitch, xs) {
     const w = t.x1 - t.x0, h = t.y1 - t.y0;
-    if (w > Math.min(6 * pitch, (xs[GRID_COLS] - xs[0]) * 0.75) || h > 2.6 * pitch || h < 0.35 * pitch) return false;
+    const hMax = (w > 3 * pitch ? 2.6 : 4.5) * pitch;
+    if (w > Math.min(6 * pitch, (xs[GRID_COLS] - xs[0]) * 0.75) || h > hMax || h < 0.35 * pitch) return false;
     let white = 0, all = 0;
     for (let y = Math.round(t.y0); y < t.y1; y += 2) for (let x = Math.round(t.x0); x < t.x1; x += 2) {
       all++;
@@ -1334,6 +1335,8 @@
   var MAX_WIDTH = 2560;
   var BRIGHT_MIN = 170;
   var GRAB_TIMEOUT_MS = 4e3;
+  var MAX_FRAME_W = 1600;
+  var MAX_FRAME_H = 1e3;
   var MIN_GRAB_GAP_MS = 60;
   var FRAME_WAIT_MS = 6e3;
   var FRAMES_KEEP = 14;
@@ -1634,7 +1637,21 @@
             bitmap.close();
             break;
           }
-          const frame = { at: Date.now(), bitmap };
+          let shot = bitmap;
+          if (shot.width > MAX_FRAME_W || shot.height > MAX_FRAME_H) {
+            const k = Math.min(MAX_FRAME_W / shot.width, MAX_FRAME_H / shot.height);
+            try {
+              const small = await createImageBitmap(shot, {
+                resizeWidth: Math.round(shot.width * k),
+                resizeHeight: Math.round(shot.height * k),
+                resizeQuality: "high"
+              });
+              shot.close();
+              shot = small;
+            } catch {
+            }
+          }
+          const frame = { at: Date.now(), bitmap: shot };
           const keep = !this.frames.length || frame.at - this.frames.at(-1).at >= FRAME_GAP_MS;
           if (keep) {
             this.frames.push(frame);
@@ -1851,7 +1868,7 @@
     }
   };
 
-  // ../../../tmp/tmp77cjatyx/test-api-entry.js
+  // ../../../tmp/tmp17zolvnk/test-api-entry.js
   window.__TEST_API = {
     grid: { detectGrid, GRID_COLS },
     features: { FeatureExtractor },

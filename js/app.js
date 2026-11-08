@@ -2899,7 +2899,8 @@ function detectLight(canvas, prev, ox, oy) {
 }
 function tipHide(t, lum, W, pitch, xs) {
   const w = t.x1 - t.x0, h = t.y1 - t.y0;
-  if (w > Math.min(6 * pitch, (xs[GRID_COLS] - xs[0]) * 0.75) || h > 2.6 * pitch || h < 0.35 * pitch) return false;
+  const hMax = (w > 3 * pitch ? 2.6 : 4.5) * pitch;
+  if (w > Math.min(6 * pitch, (xs[GRID_COLS] - xs[0]) * 0.75) || h > hMax || h < 0.35 * pitch) return false;
   let white = 0, all = 0;
   for (let y = Math.round(t.y0); y < t.y1; y += 2) for (let x = Math.round(t.x0); x < t.x1; x += 2) {
     all++;
@@ -3346,6 +3347,8 @@ var BASE = new URL("../vendor/tesseract/", new URL("js/", document.baseURI)).hre
 var MAX_WIDTH = 2560;
 var BRIGHT_MIN = 170;
 var GRAB_TIMEOUT_MS = 4e3;
+var MAX_FRAME_W = 1600;
+var MAX_FRAME_H = 1e3;
 var MIN_GRAB_GAP_MS = 60;
 var FRAME_WAIT_MS = 6e3;
 var FRAMES_KEEP = 14;
@@ -3646,7 +3649,21 @@ var TooltipReader = class _TooltipReader {
           bitmap.close();
           break;
         }
-        const frame = { at: Date.now(), bitmap };
+        let shot = bitmap;
+        if (shot.width > MAX_FRAME_W || shot.height > MAX_FRAME_H) {
+          const k = Math.min(MAX_FRAME_W / shot.width, MAX_FRAME_H / shot.height);
+          try {
+            const small = await createImageBitmap(shot, {
+              resizeWidth: Math.round(shot.width * k),
+              resizeHeight: Math.round(shot.height * k),
+              resizeQuality: "high"
+            });
+            shot.close();
+            shot = small;
+          } catch {
+          }
+        }
+        const frame = { at: Date.now(), bitmap: shot };
         const keep = !this.frames.length || frame.at - this.frames.at(-1).at >= FRAME_GAP_MS;
         if (keep) {
           this.frames.push(frame);
@@ -3965,7 +3982,13 @@ var LabelReader = class {
 var $ = (id) => document.getElementById(id);
 var fmt = (n) => new Intl.NumberFormat(locale).format(Math.round(n));
 var timeStr = (at) => new Date(at).toLocaleTimeString(locale);
-var pct = (p) => p >= 0.9995 ? "100%" : p <= 0 ? "0%" : p < 1e-3 ? "<0.1%" : `${(p * 100).toFixed(p < 0.1 ? 1 : 0)}%`;
+var pct = (p) => {
+  if (p >= 0.9995) return "100%";
+  if (p <= 0) return "0%";
+  if (p < 1e-3) return isRu ? "<0,1%" : "<0.1%";
+  const s = (p * 100).toFixed(p < 0.1 ? 1 : 0);
+  return `${isRu ? s.replace(".", ",") : s}%`;
+};
 var icon = (name, cls = "i") => `<svg class="${cls}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 var esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 var BLANK_IMG = "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
@@ -4930,7 +4953,7 @@ var FPS_KEEP_MS = 5e3;
 var LABEL_TRIES = 4;
 var HOVER_LOG_MS = 8e3;
 var HOVER_MAX_MS = 1500;
-var DUP_MS = 1500;
+var DUP_MS = 500;
 var grid = { busy: 0, lastAt: 0, seen: false, seenAt: 0, full: null, fullAt: 0, firstAt: 0, hardAt: 0, ocrAt: 0, hoverKey: null, hoverSince: 0, hoverSinceKey: null, hoverCell: null, hoverLog: [], journal: [], scans: 0, light: 0, found: 0, frame: "", inFrame: 0 };
 var LOG_LIMIT = 5e3;
 var logLines = [];
@@ -5093,12 +5116,18 @@ function trackHover(det, frame, image) {
   const hov = det.cargos.find((c) => c.hover);
   const near = hov ? tracker.locate(det, hov, shift) : null;
   const own = tracker.hoverOf(det, shift);
-  const g = own ? own.g : near;
+  const heldNow = tracker.locked ? tracker.locateRed(det, shift) : null;
+  let g = own ? own.g : near;
+  if (!g && !heldNow && det.tips?.length) {
+    for (const c of tracker.cargos.values()) if (tracker.tipCell(det, c, shift)) {
+      g = c;
+      break;
+    }
+  }
   tracker.learn(det, [g, near], shift);
   const at = tracker.tipCell(det, g, shift);
   const cell = at?.cell ?? null;
   const hoverKey = g?.key ?? null;
-  const heldNow = tracker.locked ? tracker.locateRed(det, shift) : null;
   if (!heldNow) grid.hoverLog.push({ at: frame.at, key: hoverKey, cell });
   while (frame.at - grid.hoverLog[0].at > HOVER_LOG_MS) grid.hoverLog.shift();
   grid.hoverCell = cell;
@@ -5607,7 +5636,7 @@ function heardHtml(heard, box, price = null, blink = 0, stripH = 0, solid = true
     const rFs = Math.max(12, Math.min(24, (W - 6) / ((wide ? `RED ${pc}` : pc).length * 0.62)));
     const bl = redP >= RED_MIN && !approx ? " blink" : "", delay = bl ? `animation-delay:${blink}ms` : "";
     const fsz = `font-size:${rFs.toFixed(1)}px;`;
-    if (!goodCrate) return over(html, `g-redchance${bl}`, fsz + delay);
+    if (!goodCrate) return iconsIn(box) + over(html, `g-redchance${bl}`, fsz + delay);
     const PH = Math.min(Math.max(16, Math.round(rFs * 1.15) + 6), Math.max(16, H - 16));
     const plate = `<span class="g-redchance${bl}" style="left:${box.s}px;top:${box.t + H - PH}px;width:${W}px;height:${PH}px;${fsz}${delay}">${html}</span>`;
     return iconsIn(box) + plate;
