@@ -5641,7 +5641,7 @@ function heardHtml(heard, box, price = null, blink = 0, stripH = 0, solid = true
     const fsz = `font-size:${rFs.toFixed(1)}px;`;
     const PH = Math.min(Math.max(16, Math.round(rFs * 1.15) + 6), Math.max(16, H - 16));
     const plate = `<span class="g-redchance${bl}" style="left:${box.s}px;top:${box.t + H - PH}px;width:${W}px;height:${PH}px;${fsz}${delay}">${html}</span>`;
-    if (!goodCrate) return iconsIn(H - PH >= 26 ? { ...box, H: H - PH } : box) + plate;
+    if (!goodCrate) return over(html, `g-redchance${bl}`, fsz + delay);
     return iconsIn(box) + plate;
   }
   const sh = Math.min(stripH, Math.max(0, H - 30));
