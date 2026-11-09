@@ -4127,7 +4127,8 @@ var state = {
   // тип и цену груза уточняет опросник после звука
   price: null,
   size: null,
-  rotation: true,
+  rotation: false,
+  // у торговца товары не переворачиваются: 2×3 — это 2×3, 1×2 — это 1×2
   manualSoundId: null,
   events: [],
   rejected: [],
@@ -5672,7 +5673,11 @@ var pricesOf = (g) => {
   }
   return [...out];
 };
-var priceExact = (g) => g?.price != null || pricesOf(g).length <= 1;
+var priceExact = (g) => {
+  if (g?.price != null && !g.priceGuess) return true;
+  if (g?.typeId == null || state.profileId == null) return false;
+  return pricesOf(g).length === 1;
+};
 var itemAspect = (item) => item.size ? item.size[0] / item.size[1] : 1;
 var fitIcon = (a, w, h) => {
   const iw = Math.min(w, h * a);
@@ -5723,7 +5728,7 @@ function heardHtml(heard, box, price = null, blink = 0, stripH = 0, solid = true
     return `<span class="g-heard" style="left:${left}px;top:${top}px;width:${width}px;--cw:${cw}px;--ch:${ch}px">${cells.join("")}</span>`;
   };
   if (red) {
-    const pc = (approx ? "~" : "") + pct(redP), wide = W >= 64;
+    const pc = pct(redP), wide = W >= 64;
     const html = wide ? `RED&nbsp;${pc}` : pc;
     const rFs = Math.max(12, Math.min(24, (W - 6) / ((wide ? `RED ${pc}` : pc).length * 0.62)));
     const bl = redP >= RED_MIN && !approx ? " blink" : "", delay = bl ? `animation-delay:${blink}ms` : "";
@@ -5766,13 +5771,16 @@ function gridHtml(mini = false, cell = GRID_CELL_MIN) {
     let marks = cargoMarks(rows, stats.good);
     const pay = stats.pay;
     const exact = priceExact(g);
-    const red = marks.red && exact, gold = marks.gold && exact;
     const cw = g.w * cell + (g.w - 1) * gap - 2 - 2 * pad.s;
     const pTxt = `${Math.round(pay * 100)}%`;
     const wide = cw >= 64;
     const cTxt = mini ? `<span>${L("Окуп", "Payoff")}</span><span>${pTxt}</span>` : wide ? `Окуп ${pTxt}` : `<span>Окуп</span><span>${pTxt}</span>`;
     const cFs = mini ? Math.max(7, Math.min(10, cell * 0.26)) : wide ? Math.max(10, Math.min(17, (cw - 8) / (9 * 0.62))) : Math.max(10, Math.min(15, (cw - 8) / (4 * 0.62)));
     const strip = 0;
+    const box = { ...pad, W: g.w * cell + (g.w - 1) * gap - 2 - 2 * pad.s, H: g.h * cell + (g.h - 1) * gap - 2 - pad.t - pad.b };
+    const inner = rows?.length ? heardHtml(rows, box, g.price, blink, strip, gemOk(g, marks.redP >= 0.9995), !verified(g), exact) : "";
+    const body = inner || `<span class="g-label">${esc(mini ? short : cargoName(g) ?? "")}</span>`;
+    const red = !!inner && marks.red && exact, gold = !!inner && marks.gold && exact;
     const cls = ["g-cargo", `tier${tier}`, heard && "heard", red && "red", gold && "gold", g.key === cur && "cur", g.key === grid.hoverKey && "now"].filter(Boolean).join(" ");
     const title = [
       [cargoName(g) ?? L("Тип не прочитан", "Type not read"), g.price != null && fmt(g.price), `${g.w}×${g.h}`].filter(Boolean).join(" · "),
@@ -5780,9 +5788,8 @@ function gridHtml(mini = false, cell = GRID_CELL_MIN) {
       ...(heard ?? []).slice(0, TITLE_ITEMS).map((x) => `${x.item.name} ${pct(x.p)}`),
       heard?.length > TITLE_ITEMS && `+${heard.length - TITLE_ITEMS}`
     ].filter(Boolean).join("\n");
-    const box = { ...pad, W: g.w * cell + (g.w - 1) * gap - 2 - 2 * pad.s, H: g.h * cell + (g.h - 1) * gap - 2 - pad.t - pad.b };
     out.push(`<button class="${cls}" data-cargo="${g.key}" title="${esc(title)}" style="grid-area:${g.r - r0 + 1}/${g.q + 1}/span ${g.h}/span ${g.w}${red ? `;animation-delay:${blink}ms` : ""}">
-      ${rows?.length ? heardHtml(rows, box, g.price, blink, strip, gemOk(g, marks.redP >= 0.9995), !verified(g), exact) : `<span class="g-label">${esc(mini ? short : cargoName(g) ?? "")}</span>`}
+      ${body}
       ${rows?.length && exact && stats.good && marks.redP < 0.9995 ? `<span class="g-chance${mini ? " tiny" : ""}" style="color:${pay >= 0.5 ? "#7ee787" : "#e8c46b"};font-size:${cFs.toFixed(1)}px">${cTxt}</span>` : ""}
       ${mini ? "" : `<span class="g-size">${g.w}×${g.h}</span>`}
       ${priceTag(g, rows, mini)}
@@ -5901,7 +5908,18 @@ function readHoverPrice(image, det, g, shift, tip) {
     const ms = Math.round(performance.now() - t0);
     if (tracker.cargos.get(g.key) !== g || g.price != null && !g.priceGuess) return;
     const found = reader.parse(lines, state.profileId, (v) => cargoFits(g, g.typeId, v));
-    if (!found || g.typeId != null && found.typeId != null && found.typeId !== g.typeId) {
+    if (found && g.typeId != null && found.typeId != null && found.typeId !== g.typeId) {
+      if (!cargoFits(g, found.typeId, found.price)) {
+        if (!lines.some((l) => /\d[\d  ,.]{2,}\d/.test(l.text))) g.priceTries--;
+        gridLog(`наведён ${g.key}: цену не прочитал (${g.priceTries}/${HOVER_TRIES}; ${how}, ${ms} мс)`);
+        return;
+      }
+      gridLog(`груз ${g.key}: тип ${g.typeId} исправлен на ${found.typeId} по подсказке (цена ${fmt(found.price)}, размер ${g.w}×${g.h})`);
+      g.typeId = found.typeId;
+      g.label = null;
+      snapCargoSize(g);
+    }
+    if (!found) {
       if (!lines.some((l) => /\d[\d  ,.]{2,}\d/.test(l.text))) g.priceTries--;
       gridLog(`наведён ${g.key}: цену не прочитал (${g.priceTries}/${HOVER_TRIES}; ${how}, ${ms} мс)`);
       return;
