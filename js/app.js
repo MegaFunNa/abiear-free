@@ -5685,7 +5685,7 @@ function heardHtml(heard, box, price = null, blink = 0, stripH = 0, solid = true
   const bad = (x) => !x.ok;
   const { redP, red } = cargoMarks(heard);
   const over = (html, cls, style = "") => `<span class="${cls}" style="left:${box.s}px;top:${box.t}px;width:${W}px;height:${H}px;${style}">${html}</span>`;
-  if (redP >= 0.9995 && solid) return over("💎", "g-trash g-gem");
+  if (redP >= 0.9995) return solid ? over("💎", "g-trash g-gem") : "";
   const goodCrate = (heard.stats ?? heardStats(heard)).good;
   const iconsIn = (bx) => {
     const { W: W2, H: H2 } = bx;
