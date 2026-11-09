@@ -5663,6 +5663,16 @@ var gemOk = (g, priceFree = false) => {
   const score = g.bestScore ?? 0;
   return score >= (g.priceGuess ? GEM_GUESS_MATCH : WEAK_MATCH);
 };
+var pricesOf = (g) => {
+  const out = /* @__PURE__ */ new Set();
+  for (const p of model.data?.pools ?? []) {
+    if (p.profile !== state.profileId || p.typeId !== g?.typeId) continue;
+    if (p.sizes?.length && !p.sizes.includes(`${g.w}x${g.h}`)) continue;
+    out.add(p.price);
+  }
+  return [...out];
+};
+var priceExact = (g) => g?.price != null || pricesOf(g).length <= 1;
 var itemAspect = (item) => item.size ? item.size[0] / item.size[1] : 1;
 var fitIcon = (a, w, h) => {
   const iw = Math.min(w, h * a);
@@ -5681,12 +5691,13 @@ function iconGrid(aspects, extra, W, H) {
   }
   return best;
 }
-function heardHtml(heard, box, price = null, blink = 0, stripH = 0, solid = true, approx = false) {
+function heardHtml(heard, box, price = null, blink = 0, stripH = 0, solid = true, approx = false, exact = true) {
   const { W, H } = box;
   const bad = (x) => !x.ok;
   const { redP, red } = cargoMarks(heard);
   const over = (html, cls, style = "") => `<span class="${cls}" style="left:${box.s}px;top:${box.t}px;width:${W}px;height:${H}px;${style}">${html}</span>`;
   if (redP >= 0.9995) return solid ? over("💎", "g-trash g-gem") : "";
+  if (!exact) return "";
   const goodCrate = (heard.stats ?? heardStats(heard)).good;
   const iconsIn = (bx) => {
     const { W: W2, H: H2 } = bx;
@@ -5754,7 +5765,8 @@ function gridHtml(mini = false, cell = GRID_CELL_MIN) {
     const stats = rows === heard && heard?.stats ? heard.stats : heardStats(rows);
     let marks = cargoMarks(rows, stats.good);
     const pay = stats.pay;
-    const red = marks.red, gold = marks.gold;
+    const exact = priceExact(g);
+    const red = marks.red && exact, gold = marks.gold && exact;
     const cw = g.w * cell + (g.w - 1) * gap - 2 - 2 * pad.s;
     const pTxt = `${Math.round(pay * 100)}%`;
     const wide = cw >= 64;
@@ -5770,8 +5782,8 @@ function gridHtml(mini = false, cell = GRID_CELL_MIN) {
     ].filter(Boolean).join("\n");
     const box = { ...pad, W: g.w * cell + (g.w - 1) * gap - 2 - 2 * pad.s, H: g.h * cell + (g.h - 1) * gap - 2 - pad.t - pad.b };
     out.push(`<button class="${cls}" data-cargo="${g.key}" title="${esc(title)}" style="grid-area:${g.r - r0 + 1}/${g.q + 1}/span ${g.h}/span ${g.w}${red ? `;animation-delay:${blink}ms` : ""}">
-      ${rows?.length ? heardHtml(rows, box, g.price, blink, strip, gemOk(g, marks.redP >= 0.9995), !verified(g)) : `<span class="g-label">${esc(mini ? short : cargoName(g) ?? "")}</span>`}
-      ${rows?.length && stats.good && marks.redP < 0.9995 ? `<span class="g-chance${mini ? " tiny" : ""}" style="color:${pay >= 0.5 ? "#7ee787" : "#e8c46b"};font-size:${cFs.toFixed(1)}px">${cTxt}</span>` : ""}
+      ${rows?.length ? heardHtml(rows, box, g.price, blink, strip, gemOk(g, marks.redP >= 0.9995), !verified(g), exact) : `<span class="g-label">${esc(mini ? short : cargoName(g) ?? "")}</span>`}
+      ${rows?.length && exact && stats.good && marks.redP < 0.9995 ? `<span class="g-chance${mini ? " tiny" : ""}" style="color:${pay >= 0.5 ? "#7ee787" : "#e8c46b"};font-size:${cFs.toFixed(1)}px">${cTxt}</span>` : ""}
       ${mini ? "" : `<span class="g-size">${g.w}×${g.h}</span>`}
       ${priceTag(g, rows, mini)}
     </button>`);
