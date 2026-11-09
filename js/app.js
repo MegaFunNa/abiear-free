@@ -1597,7 +1597,7 @@ var AudioEngine = class extends EventTarget {
       // 1920×1200 уходит на треть больше — из-за этого в игре падал фпс.
       // cursor: "always" — просим браузер захватывать и мышь: по её положению на кадре клетка под
       // курсором находится точно, без догадок по яркости подсветки.
-      video: { displaySurface: "window", frameRate: { ideal: 30 }, width: { max: 1600 }, height: { max: 1e3 }, cursor: "always" },
+      video: { displaySurface: "window", frameRate: { ideal: 16 }, width: { max: 1600 }, height: { max: 1e3 }, cursor: "always" },
       audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, suppressLocalAudioPlayback: false },
       systemAudio: "include",
       // Если браузер умеет — при выборе окна брать звук только этого окна (иначе Windows отдаёт звук всей системы).
@@ -1711,6 +1711,7 @@ var AudioEngine = class extends EventTarget {
     };
     this.ncc.onmessage = (e) => this.onNcc(e.data);
     this.ncc.postMessage({ type: "init", templates: templates0, opts: { threshold: NCC_THR } });
+    if (this.activeIds) this.ncc.postMessage({ type: "active", ids: this.activeIds });
     clearInterval(this.nccWatch);
     clearTimeout(this.nccWatch);
     this.nccInlineTries = 0;
@@ -1751,6 +1752,7 @@ var AudioEngine = class extends EventTarget {
   onNcc(m) {
     if (m.type === "ready") {
       this.nccReady = true;
+      if (this.activeIds) this.ncc?.postMessage({ type: "active", ids: this.activeIds });
       console.info(`[ncc] детектор готов: ${m.count} эталонов, ${m.ms.toFixed(0)} мс`);
       this.emit("detector", { kind: "ncc" });
       return;
@@ -1798,6 +1800,19 @@ var AudioEngine = class extends EventTarget {
     this.rainHist = [];
     this.rainRun = 0;
     this.setRain(false);
+  }
+  // Ограничить детектор звуками выбранной карты: на карте возможна только часть библиотеки,
+  // и корреляции с остальными эталонами только греют процессор рядом с игрой.
+  setActiveSounds(ids) {
+    const list = ids ? [...ids] : null;
+    const same = list?.length === this.activeIds?.length && list?.every((id, i) => id === this.activeIds[i]);
+    if (same) return;
+    this.activeIds = list;
+    if (this.nccInline) {
+      this.nccInline.setActive?.(list ? new Set(list) : null);
+      return;
+    }
+    if (this.ncc && this.nccReady) this.ncc.postMessage({ type: "active", ids: list });
   }
   push(msg) {
     const block = ArrayBuffer.isView(msg) ? msg : msg.b;
@@ -2650,6 +2665,22 @@ function detectGrid(canvas, hint = null) {
         } else bad = true;
       }
     };
+    // Боковая грань у самой рамки сетки: скрытая или тусклая стена — не повод выбрасывать груз
+    // (граница сетки известна из гребёнки xs[0]/xs[9], груз лежит внутри неё). Чинит пропадание
+    // грузов в правом столбце при затемнённой правой стене прилавка.
+    const sideV = (e, cell, clip) => {
+      const k = edgeKind(e);
+      if (k === "hidden" || cell === "hidden") {
+        if (cell === "hidden") {
+          partial = true;
+          mark.other = true;
+          mark.log = (mark.log ?? []).concat([[k, cell, clip, e.v, e.seen]]);
+        }
+      } else if (k === "inner") {
+        if (e.seen >= 0.6 && e.v >= 30) return;
+        if (!clip) bad = true;
+      }
+    };
     for (let q = qa; q <= qb; q++) {
       const e = hEdges[ra][q], k = edgeKind(e);
       const under = inTip((xs[q] + xs[q + 1]) / 2, ys[ra]);
@@ -2675,8 +2706,8 @@ function detectGrid(canvas, hint = null) {
       } else side(eB, below, rb === rows - 1);
     }
     for (let r = ra; r <= rb; r++) {
-      side(vEdges[r][qa], cells[r][qa - 1], qa === 0);
-      side(vEdges[r][qb + 1], cells[r][qb + 1], qb + 1 === GRID_COLS);
+      sideV(vEdges[r][qa], cells[r][qa - 1], qa === 0);
+      sideV(vEdges[r][qb + 1], cells[r][qb + 1], qb + 1 === GRID_COLS);
     }
     if (bad) {
       dropped.push({ qa, ra, w, h, n: list.length, why: "bad-edge" });
@@ -2764,23 +2795,32 @@ function detectGrid(canvas, hint = null) {
 }
 function cellStats(L2, px, W, x0, x1, y0, y1, pitch) {
   const m = Math.round(pitch * 0.12), v = [], rg = [], bg = [], lo = [];
-  let all = 0, hi = 0;
+  let all = 0, hi = 0, dark = 0;
+  // Яркие пиксели (текст подписи, курсор) в заливку клетки не идут: у 1×1 подпись занимает
+  // почти всю клетку и поднимала медиану выше порога «cargo», из-за чего груз пропадал.
+  // dark теперь честно считает именно чёрные пиксели, а не «всё, что не заливка».
   for (let y = Math.round(y0 + m); y < Math.round(y1 - m); y += 3) for (let x = Math.round(x0 + m); x < Math.round(x1 - m); x += 3) {
     all++;
     const l = L2[y * W + x];
     const i = (y * W + x) * 4;
     const mn = Math.min(px[i], px[i + 1], px[i + 2]);
-    if (mn >= 145) hi++;
-    if (l < BLACK) continue;
+    if (mn >= 145) {
+      hi++;
+      continue;
+    }
+    if (l < BLACK) {
+      dark++;
+      continue;
+    }
     v.push(l);
     rg.push(px[i] - px[i + 1]);
     bg.push(px[i + 2] - px[i + 1]);
     lo.push(mn);
   }
-  if (!v.length) return { fill: 0, flat: 0, dark: 1, hi: 0, rg: 0, bg: 0, lo: 0 };
+  if (!v.length) return { fill: 0, flat: 0, dark: 1, hi: hi / Math.max(1, all), rg: 0, bg: 0, lo: 0 };
   v.sort((x, y) => x - y);
   const fill = v[v.length >> 1];
-  return { fill, flat: v.filter((l) => Math.abs(l - fill) <= 4).length / v.length, dark: 1 - v.length / all, hi: hi / all, rg: median2(rg), bg: median2(bg), lo: median2(lo) };
+  return { fill, flat: v.filter((l) => Math.abs(l - fill) <= 4).length / v.length, dark: dark / all, hi: hi / all, rg: median2(rg), bg: median2(bg), lo: median2(lo) };
 }
 function iconGeom(px, W, H, bx0, bx1, by0, by1, skipFrac = 0) {
   let rows = [], xs = [];
@@ -2940,35 +2980,118 @@ function findCursor(L2, W, H, xs, ys, rows) {
       total++;
     }
   }
-  if (total < CURSOR_MIN_PX || total > CURSOR_MAX_PX) return null;
-  const band = (arr, from, to, win) => {
-    let sum = 0;
-    for (let i = from; i < from + win && i <= to; i++) sum += arr[i];
-    let best = sum, at = from;
-    for (let i = from + win; i <= to; i++) {
-      sum += arr[i] - arr[i - win];
-      if (sum > best) {
-        best = sum;
-        at = i - win + 1;
+  if (total >= CURSOR_MIN_PX && total <= CURSOR_MAX_PX) {
+    const band = (arr, from, to, win) => {
+      let sum = 0;
+      for (let i = from; i < from + win && i <= to; i++) sum += arr[i];
+      let best = sum, at = from;
+      for (let i = from + win; i <= to; i++) {
+        sum += arr[i] - arr[i - win];
+        if (sum > best) {
+          best = sum;
+          at = i - win + 1;
+        }
+      }
+      return { at, n: best };
+    };
+    const bh = band(rowN, y0, y1, Math.min(CURSOR_H, rowsN));
+    const bw = band(colN, x0, x1, Math.min(CURSOR_W, cols));
+    if (bh.n >= CURSOR_MIN_PX && bw.n >= 4) {
+      const bx0 = bw.at, bx1 = Math.min(x1, bw.at + CURSOR_W - 1), by1 = Math.min(y1, bh.at + CURSOR_H - 1);
+      for (let y = bh.at; y <= by1; y++) {
+        let n = 0, sx = 0;
+        for (let x = bx0; x <= bx1; x++) if (L2[y * W + x] >= CURSOR_LUM) {
+          n++;
+          sx += x;
+        }
+        if (!n) continue;
+        if (n > 4) break;
+        return { x: Math.round(sx / n), y };
       }
     }
-    return { at, n: best };
-  };
-  const bh = band(rowN, y0, y1, Math.min(CURSOR_H, rowsN));
-  const bw = band(colN, x0, x1, Math.min(CURSOR_W, cols));
-  if (bh.n < CURSOR_MIN_PX || bw.n < 4) return null;
-  const bx0 = bw.at, bx1 = Math.min(x1, bw.at + CURSOR_W - 1), by1 = Math.min(y1, bh.at + CURSOR_H - 1);
-  for (let y = bh.at; y <= by1; y++) {
-    let n = 0, sx = 0;
-    for (let x = bx0; x <= bx1; x++) if (L2[y * W + x] >= CURSOR_LUM) {
-      n++;
-      sx += x;
-    }
-    if (!n) continue;
-    if (n > 4) return null;
-    return { x: Math.round(sx / n), y };
   }
-  return null;
+  return findCursorShape(L2, W, x0, x1, y0, y1);
+}
+// Запасной путь, когда текст подписей почти того же цвета, что курсор: быстрый путь
+// ломается (текст поднимает счётчики строк/столбцов). Ищем саму форму стрелки Windows:
+// цепочку узких ярких полос с почти вертикальным левым краем, растущих сверху вниз,
+// с узким «хвостом» ниже самой широкой строки. Буквы текста такую форму не дают.
+function findCursorShape(L2, W, x0, x1, y0, y1) {
+  const RUN_MAX = 24;
+  const rows2 = [];
+  for (let y = y0; y <= y1; y++) {
+    const r = y * W;
+    let runs = [], start = -1;
+    for (let x = x0; x <= x1 + 1; x++) {
+      const on = x <= x1 && L2[r + x] >= CURSOR_LUM;
+      if (on && start < 0) start = x;
+      else if (!on && start >= 0) {
+        if (x - start <= RUN_MAX) runs.push([start, x - 1]);
+        start = -1;
+      }
+    }
+    if (runs.length) rows2.push({ y, runs });
+  }
+  const chains = [];
+  for (const { y, runs } of rows2) {
+    // 1) пересекающиеся полосы одной строки — в одну группу
+    const sorted = [...runs].sort((a, b) => a[0] - b[0]);
+    const groups = [];
+    for (const run of sorted) {
+      const last = groups[groups.length - 1];
+      if (last && run[0] <= last[1] + 1) {
+        if (run[1] > last[1]) last[1] = run[1];
+      } else groups.push([run[0], run[1]]);
+    }
+    // 2) каждую группу присоединяем к цепочке прошлого ряда (x-пересечение) или создаём новую
+    for (const g of groups) {
+      let ch = null;
+      for (const c of chains) {
+        if (y - c.y1 > 1) continue;
+        const lastRow = c.rows[c.rows.length - 1];
+        if (lastRow && lastRow.runs.some((prev) => g[0] <= prev[1] + 1 && g[1] >= prev[0] - 1)) {
+          ch = c;
+          break;
+        }
+      }
+      const w = g[1] - g[0] + 1;
+      if (!ch) {
+        ch = { y0: y, y1: y, rows: [], px: 0 };
+        chains.push(ch);
+      }
+      ch.rows.push({ y, runs: [g], l: g[0], r: g[1], w });
+      ch.px += w;
+      ch.y1 = y;
+    }
+  }
+  let best = null;
+  for (const c of chains) {
+    const h = c.y1 - c.y0 + 1;
+    if (h < 10 || h > 60 || c.px < CURSOR_MIN_PX) continue;
+    const wmax = Math.max(...c.rows.map((row) => row.w));
+    if (wmax < 6 || wmax > 22) continue;
+    const ls = c.rows.map((row) => row.l);
+    if (Math.max(...ls) - Math.min(...ls) > 3) continue;
+    let wideAt = -1;
+    c.rows.forEach((row, i) => {
+      if (wideAt < 0 && row.w >= wmax * 0.92) wideAt = i;
+    });
+    if (wideAt < 4) continue;
+    const head = c.rows.slice(0, wideAt + 1), tail = c.rows.slice(wideAt + 1);
+    if (head[0].w > 3) continue;
+    let growOk = true;
+    for (let i = 1; i < head.length; i++) if (head[i].w < head[i - 1].w - 1) {
+      growOk = false;
+      break;
+    }
+    if (!growOk || !tail.length) continue;
+    const tailOk = tail.filter((row) => row.w <= Math.max(4, wmax * 0.35) + 2).length;
+    if (tailOk < tail.length * 0.7) continue;
+    if (!best || c.px > best.px) best = c;
+  }
+  if (!best) return null;
+  const tip = best.rows[0];
+  return { x: Math.round(tip.l + tip.w / 2), y: best.y0 };
 }
 function findTips(lum, W, H, xs, ys, pitch) {
   const minRun = pitch * 0.6, from = Math.max(0, Math.round(xs[0] - 6 * pitch));
@@ -4107,7 +4230,10 @@ var pipSupported = "documentPictureInPicture" in window;
 var pipPending = false;
 var model = new MerchantModel(data);
 var remote = new RemoteModel(model);
-remote.addEventListener("change", () => update());
+remote.addEventListener("change", () => {
+  applyActiveSounds();
+  update();
+});
 var reloading = false;
 remote.addEventListener("unauthorized", () => {
   if (!reloading) {
@@ -4248,9 +4374,20 @@ function setMap(mapName, mode) {
   state.profileId = choice.profileId;
   store.set(KEYS.mapLabel, state.mapLabel);
   engine.mapName = mapName;
+  applyActiveSounds();
   tracker.reset();
   syncMapUi();
   update();
+}
+// Детектор звука: на выбранной карте возможна только часть библиотеки звуков — остальное не считаем (экономия CPU).
+// Таблица possible грузится с задержкой, поэтому повторяем при каждом изменении remote.
+function applyActiveSounds() {
+  if (state.profileId == null) {
+    engine.setActiveSounds(null);
+    return;
+  }
+  const ids = [...remote.possible(state.profileId).keys()];
+  engine.setActiveSounds(ids.length ? new Set(ids) : null);
 }
 function syncMapUi() {
   const entry = mapChoices.find((m) => m.map === state.mapPick?.map);
@@ -4520,6 +4657,11 @@ function renderSummary(rows, group, allowedSounds) {
   const stats = heardStats(rows);
   const pay = stats.pay;
   const redP = rows.reduce((s, r) => s + (r.item.rarity >= RED_RARITY ? r.p : 0), 0);
+  // Цена ещё не прочитана: шансы смешаны по всем ценам пула этого типа — числа в сводке
+  // только ориентировочные (клетка вердикт в таком случае не показывает).
+  const answer = group?.base.answer ?? {};
+  const priceKnown = (answer.price ?? state.price) != null || model.priceOptions(state.profileId, answer.typeId ?? state.typeId).length <= 1;
+  const approxPay = priceKnown ? pct(pay) : `~${pct(pay)}`;
   const rareStat = (rarity, nameRu, nameEn) => {
     const all = rows.reduce((sum, r) => sum + (r.item.rarity === rarity ? r.p : 0), 0);
     if (all <= 0) return "";
@@ -4531,7 +4673,7 @@ function renderSummary(rows, group, allowedSounds) {
     <div class="stat"><span>${L("Скорее всего", "Most likely")}</span><b title="${esc(top?.item.name ?? "")}">${top ? `${pct(top.p)}` : "—"}</b>
       <span>${top ? esc(top.item.name) : L("нет выгодных", "no profitable")}</span></div>
     ${rareStat(GOLD_RARITY, "золотуха", "GOLD")}${rareStat(RED_RARITY, "краснуха", "RED")}
-    ${stats.good ? `<div class="stat"><span>${L("Окуп", "Payoff")}</span><b>${pct(pay)}</b><span>${L("запас ≥ 50к", "margin 50k+")}</span></div>` : ""}`;
+    ${stats.good ? `<div class="stat"><span>${L("Окуп", "Payoff")}</span><b>${approxPay}</b><span>${priceKnown ? L("запас ≥ 50к", "margin 50k+") : L("цена не прочитана — оценка", "price not read — estimate")}</span></div>` : ""}`;
   const notes = [];
   if (state.manualSoundId != null) notes.push(`${L("Звук выбран вручную", "Sound picked manually")}: <b>#${state.manualSoundId}</b> <button class="btn small" data-act="clear-manual">${icon("x")}${L("Снять", "Clear")}</button>`);
   if (group) {
@@ -4989,9 +5131,11 @@ var DETECT_TIMEOUT_MS = 5e3;
 var GRID_EVERY_MS = 200;
 var GRID_IDLE_MS = 2e3;
 var SCAN_STEPS = [
-  { light: 60, full: 700, fps: 30 },
-  { light: 120, full: 1500, fps: 20 },
-  { light: 200, full: 2500, fps: 12 }
+  // Частота захвата кадров — главный потребитель ресурсов рядом с игрой. Поток берёт кадры не
+  // чаще 60 мс (MIN_GRAB_GAP_MS ≈ 16 к/с), поэтому ideal выше 16 только грел конвейер захвата.
+  { light: 60, full: 700, fps: 16 },
+  { light: 120, full: 1500, fps: 12 },
+  { light: 200, full: 2500, fps: 10 }
 ];
 var scanStep = 0;
 var scanMs = 0;
@@ -5015,7 +5159,7 @@ function setScanStep(step, ms) {
   gridLog(`скан ${ms.toFixed(0)} мс → режим ${step} (${SCAN_STEPS[step].light} мс, ${SCAN_STEPS[step].fps} к/с)`);
 }
 var scanCfg = () => SCAN_STEPS[scanStep];
-var FPS_IDLE = 10;
+var FPS_IDLE = 8;
 var FPS_KEEP_MS = 5e3;
 var LABEL_TRIES = 4;
 var HOVER_LOG_MS = 8e3;
@@ -5633,6 +5777,10 @@ var RED_RARITY = 6;
 var GOLD_RARITY = 5;
 var RED_MIN = 0.01;
 var RED_BLINK_MS = 1e3;
+// Период пульса 💎: алмаз «дышит» между текущим размером и размером груза (по меньшей стороне,
+// чтобы быть целиком видимым). Должен совпадать с длительностью анимации gem-pulse в css/style.css —
+// отрицательная задержка держит фазу при пересборке сетки.
+var GEM_PULSE_MS = 1600;
 var PROFIT_MIN = 5e4;
 var isGood = (r) => typeof r.ok === "boolean" ? r.ok : r.item.contactPrice - (r.cargoPrice ?? 0) >= PROFIT_MIN;
 var RED_SHOW = 0.02;
@@ -5696,12 +5844,20 @@ function iconGrid(aspects, extra, W, H) {
   }
   return best;
 }
-function heardHtml(heard, box, price = null, blink = 0, stripH = 0, solid = true, approx = false, exact = true) {
+function heardHtml(heard, box, price = null, blink = 0, stripH = 0, solid = true, approx = false, exact = true, gemFs = 0, gemLim = 0) {
   const { W, H } = box;
   const bad = (x) => !x.ok;
   const { redP, red } = cargoMarks(heard);
   const over = (html, cls, style = "") => `<span class="${cls}" style="left:${box.s}px;top:${box.t}px;width:${W}px;height:${H}px;${style}">${html}</span>`;
-  if (redP >= 0.9995) return solid ? over("💎", "g-trash g-gem") : "";
+  if (redP >= 0.9995) {
+    if (!solid) return "";
+    // Пульс алмаза: растёт до размера груза, но не дальше меньшей его стороны (целиком видно),
+    // и возвращается к текущему размеру. Размер задаём инлайн — он одинаков в большой сетке и в окне поверх игры.
+    const fs = gemFs > 0 ? gemFs : Math.min(62, Math.max(28, Math.min(W, H) * 0.9));
+    const k = gemLim > fs * 1.03 ? (gemLim / fs).toFixed(3) : "";
+    const phase = k ? `--gem-max:${k};animation-delay:${-Date.now() % GEM_PULSE_MS}ms;` : "";
+    return over("💎", `g-trash g-gem${k ? " gem-pulse" : ""}`, `font-size:${fs.toFixed(1)}px;${phase}`);
+  }
   if (!exact) return "";
   const goodCrate = (heard.stats ?? heardStats(heard)).good;
   const iconsIn = (bx) => {
@@ -5778,7 +5934,10 @@ function gridHtml(mini = false, cell = GRID_CELL_MIN) {
     const cFs = mini ? Math.max(7, Math.min(10, cell * 0.26)) : wide ? Math.max(10, Math.min(17, (cw - 8) / (9 * 0.62))) : Math.max(10, Math.min(15, (cw - 8) / (4 * 0.62)));
     const strip = 0;
     const box = { ...pad, W: g.w * cell + (g.w - 1) * gap - 2 - 2 * pad.s, H: g.h * cell + (g.h - 1) * gap - 2 - pad.t - pad.b };
-    const inner = rows?.length ? heardHtml(rows, box, g.price, blink, strip, gemOk(g, marks.redP >= 0.9995), !verified(g), exact) : "";
+    // Пульс 💎: базовый размер — как в css (.g-gem), предел роста — меньшая сторона груза в пикселях.
+    const gemFs = Math.max(28, Math.min(62, cell * 0.78));
+    const gemLim = Math.min(g.w * cell + (g.w - 1) * gap, g.h * cell + (g.h - 1) * gap) - 4;
+    const inner = rows?.length ? heardHtml(rows, box, g.price, blink, strip, gemOk(g, marks.redP >= 0.9995), !verified(g), exact, gemFs, gemLim) : "";
     const body = inner || `<span class="g-label">${esc(mini ? short : cargoName(g) ?? "")}</span>`;
     const red = !!inner && marks.red && exact, gold = !!inner && marks.gold && exact;
     const cls = ["g-cargo", `tier${tier}`, heard && "heard", red && "red", gold && "gold", g.key === cur && "cur", g.key === grid.hoverKey && "now"].filter(Boolean).join(" ");

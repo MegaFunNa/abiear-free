@@ -371,6 +371,22 @@
           } else bad = true;
         }
       };
+      // Боковая грань у самой рамки сетки: скрытая или тусклая стена — не повод выбрасывать груз
+      // (граница сетки известна из гребёнки xs[0]/xs[9], груз лежит внутри неё). Это чинило
+      // пропадание грузов в правом столбце, когда правая стена прилавка затемнена сценой.
+      const sideV = (e, cell, clip) => {
+        const k = edgeKind(e);
+        if (k === "hidden" || cell === "hidden") {
+          if (cell === "hidden") {
+            partial = true;
+            mark.other = true;
+            mark.log = (mark.log ?? []).concat([[k, cell, clip, e.v, e.seen]]);
+          }
+        } else if (k === "inner") {
+          if (e.seen >= 0.6 && e.v >= 30) return;
+          if (!clip) bad = true;
+        }
+      };
       for (let q = qa; q <= qb; q++) {
         const e = hEdges[ra][q], k = edgeKind(e);
         const under = inTip((xs[q] + xs[q + 1]) / 2, ys[ra]);
@@ -396,8 +412,8 @@
         } else side(eB, below, rb === rows - 1);
       }
       for (let r = ra; r <= rb; r++) {
-        side(vEdges[r][qa], cells[r][qa - 1], qa === 0);
-        side(vEdges[r][qb + 1], cells[r][qb + 1], qb + 1 === GRID_COLS);
+        sideV(vEdges[r][qa], cells[r][qa - 1], qa === 0);
+        sideV(vEdges[r][qb + 1], cells[r][qb + 1], qb + 1 === GRID_COLS);
       }
       if (bad) {
         dropped.push({ qa, ra, w, h, n: list.length, why: "bad-edge" });
@@ -485,23 +501,32 @@
   }
   function cellStats(L, px, W, x0, x1, y0, y1, pitch) {
     const m = Math.round(pitch * 0.12), v = [], rg = [], bg = [], lo = [];
-    let all = 0, hi = 0;
+    let all = 0, hi = 0, dark = 0;
+    // Яркие пиксели (текст подписи, курсор) в заливку клетки не идут: у 1×1 подпись занимает
+    // почти всю клетку и поднимала медиану выше порога «cargo», из-за чего груз пропадал.
+    // dark теперь честно считает именно чёрные пиксели, а не «всё, что не заливка».
     for (let y = Math.round(y0 + m); y < Math.round(y1 - m); y += 3) for (let x = Math.round(x0 + m); x < Math.round(x1 - m); x += 3) {
       all++;
       const l = L[y * W + x];
       const i = (y * W + x) * 4;
       const mn = Math.min(px[i], px[i + 1], px[i + 2]);
-      if (mn >= 145) hi++;
-      if (l < BLACK) continue;
+      if (mn >= 145) {
+        hi++;
+        continue;
+      }
+      if (l < BLACK) {
+        dark++;
+        continue;
+      }
       v.push(l);
       rg.push(px[i] - px[i + 1]);
       bg.push(px[i + 2] - px[i + 1]);
       lo.push(mn);
     }
-    if (!v.length) return { fill: 0, flat: 0, dark: 1, hi: 0, rg: 0, bg: 0, lo: 0 };
+    if (!v.length) return { fill: 0, flat: 0, dark: 1, hi: hi / Math.max(1, all), rg: 0, bg: 0, lo: 0 };
     v.sort((x, y) => x - y);
     const fill = v[v.length >> 1];
-    return { fill, flat: v.filter((l) => Math.abs(l - fill) <= 4).length / v.length, dark: 1 - v.length / all, hi: hi / all, rg: median(rg), bg: median(bg), lo: median(lo) };
+    return { fill, flat: v.filter((l) => Math.abs(l - fill) <= 4).length / v.length, dark: dark / all, hi: hi / all, rg: median(rg), bg: median(bg), lo: median(lo) };
   }
   function iconGeom(px, W, H, bx0, bx1, by0, by1, skipFrac = 0) {
     let rows = [], xs = [];
@@ -655,35 +680,118 @@
         total++;
       }
     }
-    if (total < CURSOR_MIN_PX || total > CURSOR_MAX_PX) return null;
-    const band = (arr, from, to, win) => {
-      let sum = 0;
-      for (let i = from; i < from + win && i <= to; i++) sum += arr[i];
-      let best = sum, at = from;
-      for (let i = from + win; i <= to; i++) {
-        sum += arr[i] - arr[i - win];
-        if (sum > best) {
-          best = sum;
-          at = i - win + 1;
+    if (total >= CURSOR_MIN_PX && total <= CURSOR_MAX_PX) {
+      const band = (arr, from, to, win) => {
+        let sum = 0;
+        for (let i = from; i < from + win && i <= to; i++) sum += arr[i];
+        let best = sum, at = from;
+        for (let i = from + win; i <= to; i++) {
+          sum += arr[i] - arr[i - win];
+          if (sum > best) {
+            best = sum;
+            at = i - win + 1;
+          }
+        }
+        return { at, n: best };
+      };
+      const bh = band(rowN, y0, y1, Math.min(CURSOR_H, rowsN));
+      const bw = band(colN, x0, x1, Math.min(CURSOR_W, cols));
+      if (bh.n >= CURSOR_MIN_PX && bw.n >= 4) {
+        const bx0 = bw.at, bx1 = Math.min(x1, bw.at + CURSOR_W - 1), by1 = Math.min(y1, bh.at + CURSOR_H - 1);
+        for (let y = bh.at; y <= by1; y++) {
+          let n = 0, sx = 0;
+          for (let x = bx0; x <= bx1; x++) if (L[y * W + x] >= CURSOR_LUM) {
+            n++;
+            sx += x;
+          }
+          if (!n) continue;
+          if (n > 4) break;
+          return { x: Math.round(sx / n), y };
         }
       }
-      return { at, n: best };
-    };
-    const bh = band(rowN, y0, y1, Math.min(CURSOR_H, rowsN));
-    const bw = band(colN, x0, x1, Math.min(CURSOR_W, cols));
-    if (bh.n < CURSOR_MIN_PX || bw.n < 4) return null;
-    const bx0 = bw.at, bx1 = Math.min(x1, bw.at + CURSOR_W - 1), by1 = Math.min(y1, bh.at + CURSOR_H - 1);
-    for (let y = bh.at; y <= by1; y++) {
-      let n = 0, sx = 0;
-      for (let x = bx0; x <= bx1; x++) if (L[y * W + x] >= CURSOR_LUM) {
-        n++;
-        sx += x;
-      }
-      if (!n) continue;
-      if (n > 4) return null;
-      return { x: Math.round(sx / n), y };
     }
-    return null;
+    return findCursorShape(L, W, x0, x1, y0, y1);
+  }
+  // Запасной путь, когда текст подписей почти того же цвета, что курсор: быстрый путь
+  // ломается (текст поднимает счётчики строк/столбцов). Ищем саму форму стрелки Windows:
+  // цепочку узких ярких полос с почти вертикальным левым краем, растущих сверху вниз,
+  // с узким «хвостом» ниже самой широкой строки. Буквы текста такую форму не дают.
+  function findCursorShape(L, W, x0, x1, y0, y1) {
+    const RUN_MAX = 24;
+    const rows2 = [];
+    for (let y = y0; y <= y1; y++) {
+      const r = y * W;
+      let runs = [], start = -1;
+      for (let x = x0; x <= x1 + 1; x++) {
+        const on = x <= x1 && L[r + x] >= CURSOR_LUM;
+        if (on && start < 0) start = x;
+        else if (!on && start >= 0) {
+          if (x - start <= RUN_MAX) runs.push([start, x - 1]);
+          start = -1;
+        }
+      }
+      if (runs.length) rows2.push({ y, runs });
+    }
+    const chains = [];
+    for (const { y, runs } of rows2) {
+      // 1) пересекающиеся полосы одной строки — в одну группу
+      const sorted = [...runs].sort((a, b) => a[0] - b[0]);
+      const groups = [];
+      for (const run of sorted) {
+        const last = groups[groups.length - 1];
+        if (last && run[0] <= last[1] + 1) {
+          if (run[1] > last[1]) last[1] = run[1];
+        } else groups.push([run[0], run[1]]);
+      }
+      // 2) каждую группу присоединяем к цепочке прошлого ряда (x-пересечение) или создаём новую
+      for (const g of groups) {
+        let ch = null;
+        for (const c of chains) {
+          if (y - c.y1 > 1) continue;
+          const lastRow = c.rows[c.rows.length - 1];
+          if (lastRow && lastRow.runs.some((prev) => g[0] <= prev[1] + 1 && g[1] >= prev[0] - 1)) {
+            ch = c;
+            break;
+          }
+        }
+        const w = g[1] - g[0] + 1;
+        if (!ch) {
+          ch = { y0: y, y1: y, rows: [], px: 0 };
+          chains.push(ch);
+        }
+        ch.rows.push({ y, runs: [g], l: g[0], r: g[1], w });
+        ch.px += w;
+        ch.y1 = y;
+      }
+    }
+    let best = null;
+    for (const c of chains) {
+      const h = c.y1 - c.y0 + 1;
+      if (h < 10 || h > 60 || c.px < CURSOR_MIN_PX) continue;
+      const wmax = Math.max(...c.rows.map((row) => row.w));
+      if (wmax < 6 || wmax > 22) continue;
+      const ls = c.rows.map((row) => row.l);
+      if (Math.max(...ls) - Math.min(...ls) > 3) continue;
+      let wideAt = -1;
+      c.rows.forEach((row, i) => {
+        if (wideAt < 0 && row.w >= wmax * 0.92) wideAt = i;
+      });
+      if (wideAt < 4) continue;
+      const head = c.rows.slice(0, wideAt + 1), tail = c.rows.slice(wideAt + 1);
+      if (head[0].w > 3) continue;
+      let growOk = true;
+      for (let i = 1; i < head.length; i++) if (head[i].w < head[i - 1].w - 1) {
+        growOk = false;
+        break;
+      }
+      if (!growOk || !tail.length) continue;
+      const tailOk = tail.filter((row) => row.w <= Math.max(4, wmax * 0.35) + 2).length;
+      if (tailOk < tail.length * 0.7) continue;
+      if (!best || c.px > best.px) best = c;
+    }
+    if (!best) return null;
+    const tip = best.rows[0];
+    return { x: Math.round(tip.l + tip.w / 2), y: best.y0 };
   }
   function findTips(lum, W, H, xs, ys, pitch) {
     const minRun = pitch * 0.6, from = Math.max(0, Math.round(xs[0] - 6 * pitch));
@@ -747,6 +855,8 @@
         cargos: det.cargos,
         red: det.red,
         tips: det.tips,
+        // v18.52 считал курсор, но не передавал его из воркера — «наведение по курсору» на сайте не работало вовсе.
+        cursor: det.cursor ?? null,
         fills: det.fills.map((row) => row.map((f) => [f.fill, f.lo, f.dark])),
         light: !!light
       };

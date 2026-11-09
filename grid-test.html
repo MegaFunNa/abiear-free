@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<title>Стенд детекции сетки (разработческий)</title>
+<style>
+  body { background: #101418; color: #dfe8f2; font: 14px/1.5 "Segoe UI", sans-serif; margin: 20px; }
+  button { background: #2c3a4a; color: #fff; border: 1px solid #456; padding: 6px 14px; margin: 2px; cursor: pointer; border-radius: 4px; }
+  button:hover { background: #38506a; }
+  pre { background: #0a0e12; border: 1px solid #233; padding: 10px; max-height: 420px; overflow: auto; white-space: pre-wrap; }
+  .ok { color: #7ee787; } .bad { color: #ff7b72; } .warn { color: #e8c46b; }
+  canvas { display: none; }
+  h2 { font-size: 16px; margin: 18px 0 6px; }
+</style>
+</head>
+<body>
+<h1>Стенд детекции сетки ABI Merchant</h1>
+<p>Рисует синтетический прилавок (тёмный фон, светлые линии, серые грузы, белый текст, курсор) и прогоняет его через настоящий <code>js/grid-worker.js</code>. Ожидания см. в сценариях.</p>
+<button id="run">Запустить все сценарии</button>
+<button id="one">Только текущий</button>
+<h2>Результаты</h2>
+<pre id="out">—</pre>
+<canvas id="cv" width="1600" height="1000"></canvas>
+
+<script>
+const W = 1600, H = 1000, GRID_COLS = 9;
+const out = document.getElementById("out");
+const cv = document.getElementById("cv");
+const g = cv.getContext("2d", { willReadFrequently: true });
+
+// ---- примитивы в стиле игры ----
+const lum = (v) => `rgb(${v},${v},${v})`;
+function vline(x, y0, y1, v) { g.fillStyle = lum(v); g.fillRect(x - 1, y0, 2, y1 - y0); }
+function hline(y, x0, x1, v) { g.fillStyle = lum(v); g.fillRect(x0, y - 1, x1 - x0, 2); }
+// груз: серая заливка + иконка посередине (серый блок 25..125, ~25% площади)
+function cargoCell(x0, y0, x1, y1) {
+  g.fillStyle = lum(38); g.fillRect(x0 + 3, y0 + 3, x1 - x0 - 6, y1 - y0 - 6);
+  const iw = (x1 - x0) * 0.5, ih = (y1 - y0) * 0.5;
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  g.fillStyle = lum(70);
+  g.fillRect(cx - iw / 2, cy - ih / 2, iw, ih);
+}
+// подпись типа: белый текст, обрезанный по клетке. cover=1 — текст почти на всю клетку
+function labelText(x0, y0, x1, y1, cover, bright) {
+  const w = x1 - x0, h = y1 - y0;
+  g.save();
+  g.beginPath(); g.rect(x0 + 2, y0 + 2, w - 4, h - 4); g.clip();
+  const fs = cover ? Math.min(34, h * 0.36) : Math.min(24, h * 0.2);
+  g.font = `bold ${fs}px sans-serif`;
+  g.fillStyle = lum(bright);
+  const tx = x0 + w * 0.06, ty = y0 + fs + 4;
+  g.fillText(cover ? "Загадочный" : "Загадочный", tx, ty);
+  if (cover) g.fillText("груз 70к", tx, ty + fs);
+  g.restore();
+}
+// курсор-стрелка Windows: белая заливка, размер scale
+function cursorArrow(px, py, scale = 1) {
+  g.fillStyle = "#f0f0f0";
+  const rows = [1,2,3,4,5,6,7,8,9,10,11,12,8,6,4,4,4,4,4];
+  let y = py;
+  for (const w of rows) {
+    const ww = Math.max(1, Math.round(w * scale));
+    g.fillRect(px, y, ww, Math.max(1, Math.round(1 * scale)));
+    y += Math.max(1, Math.round(1 * scale));
+  }
+  return { w: 12 * scale, h: y - py };
+}
+// плашка подсказки: чёрный прямоугольник с белой рамкой и текстом
+function tooltip(x0, y0, x1, y1) {
+  g.fillStyle = "#000"; g.fillRect(x0, y0, x1 - x0, y1 - y0);
+  g.strokeStyle = "#e8e8e8"; g.lineWidth = 2; g.strokeRect(x0 + 1, y0 + 1, x1 - x0 - 2, y1 - y0 - 2);
+  g.fillStyle = "#e0e0e0"; g.font = "24px sans-serif";
+  g.fillText("Загадочный груз", x0 + 14, y0 + 34);
+  g.fillText("70 000", x0 + 14, y0 + 66);
+}
+
+// ---- каркас прилавка ----
+// pitch=120, 9 колонок; cargos: {"q,r": [w,h, {text?, cover?, bright?}]}
+function drawStand({ x0 = 140, y0 = 90, pitch = 120, rows = 7, cargos = {}, rightWallDim = null, labels = true }) {
+  g.fillStyle = "#060606"; g.fillRect(0, 0, W, H);
+  const xs = Array.from({ length: GRID_COLS + 1 }, (_, k) => x0 + k * pitch);
+  const ys = Array.from({ length: rows + 1 }, (_, k) => y0 + k * pitch);
+  for (let k = 0; k <= GRID_COLS; k++) {
+    let v = 62;
+    if (rightWallDim && k === GRID_COLS) {
+      // правая стена яркая везде, кроме диапазона rightWallDim (там тусклая)
+      vline(xs[k], ys[0], rightWallDim.y0, 62);
+      g.fillStyle = lum(8); g.fillRect(xs[k] - 1, rightWallDim.y0, 2, rightWallDim.y1 - rightWallDim.y0);
+      vline(xs[k], rightWallDim.y1, ys[rows], 62);
+      continue;
+    }
+    vline(xs[k], ys[0], ys[rows], v);
+  }
+  for (let k = 0; k <= rows; k++) hline(ys[k], xs[0], xs[GRID_COLS], 62);
+  const occ = new Set();
+  for (const [key, spec] of Object.entries(cargos)) {
+    const [q, r] = key.split(",").map(Number);
+    const [w, h] = spec;
+    for (let dq = 0; dq < w; dq++) for (let dr = 0; dr < h; dr++) occ.add(`${q + dq},${r + dr}`);
+    const cx0 = xs[q], cy0 = ys[r], cx1 = xs[q + w], cy1 = ys[r + h];
+    cargoCell(cx0, cy0, cx1, cy1);
+    if (labels) labelText(cx0, cy0, cx1, cy1, spec.cover, spec.bright ?? 180);
+  }
+  // пустые клетки: подписи, как в игре (нужны для panelScore)
+  for (let r = 0; r < rows; r++) for (let q = 0; q < GRID_COLS; q++) {
+    if (occ.has(`${q},${r}`)) continue;
+    if (labels) labelText(xs[q], ys[r], xs[q + 1], ys[r + 1], false, 180);
+  }
+  return { xs, ys, pitch, rows };
+}
+
+// ---- прогон через воркер ----
+let seq = 0;
+function askWorker(bitmap) {
+  return new Promise((resolve) => {
+    const id = ++seq;
+    const t = setTimeout(() => resolve(null), 5000);
+    wk.onmessage = ({ data }) => {
+      if (data.id !== id) return;
+      clearTimeout(t);
+      resolve(data.det);
+    };
+    wk.postMessage({ id, bitmap }, [bitmap]);
+  });
+}
+async function detect() {
+  const bitmap = await createImageBitmap(cv);
+  return askWorker(bitmap);
+}
+
+// ---- сценарии ----
+const SCENARIOS = [];
+function scenario(name, expect, draw, debugCells) { SCENARIOS.push({ name, expect, draw, debugCells }); }
+
+// S1: база — грузы без яркого текста, курсор над 2×2
+scenario("S1 база: 4 груза, курсор над 2×2", { cargos: 4, cursor: true }, () => {
+  drawStand({ cargos: {
+    "0,0": [2, 2], "3,1": [2, 2], "6,3": [1, 1], "8,5": [1, 1],
+  } });
+  cursorArrow(260, 240); // внутри груза 0,0 (x0=140+pitch120 → клетка 0,0: 140..380, 90..330)
+});
+
+// S2: курсор над 1×1 с ярким текстом почти на всю клетку
+scenario("S2 курсор над 1×1 с ярким текстом (репро бага наведения)", { cargos: 4, cursor: true }, () => {
+  drawStand({ cargos: {
+    "0,0": [2, 2], "3,1": [2, 2], "6,3": [1, 1, { cover: 1, bright: 230 }], "8,5": [1, 1],
+  } });
+  // курсор в центр клетки 6,3: x = 140+6*120+10=870, y = 90+3*120+30=480
+  cursorArrow(870, 470);
+});
+
+// S3: 1×1 с ярким текстом почти на всю клетку — виден ли груз вообще
+scenario("S3 груз 1×1 с ярким текстом (репро пропадания)", { cargos: 4, cursor: null }, () => {
+  drawStand({ cargos: {
+    "0,0": [2, 2], "3,1": [2, 2], "6,3": [1, 1, { cover: 1, bright: 230 }], "8,5": [1, 1],
+  } });
+}, [[6, 3], [8, 5]]);
+
+// S4: правая колонка, правая стена тусклая в зоне груза
+scenario("S4 груз у правой стены, стена тусклая (репро пропадания справа)", { cargos: 4, cursor: null }, () => {
+  drawStand({
+    cargos: { "0,0": [2, 2], "3,1": [2, 2], "6,3": [1, 1], "8,5": [1, 1] },
+    rightWallDim: { y0: 90 + 5 * 120 + 6, y1: 90 + 6 * 120 - 6 }, // диапазон груза 8,5
+  });
+}, [[8, 5]]);
+
+// S5: много яркого текста по всей сетке + курсор над 2×2
+scenario("S5 яркий текст везде (170+), курсор над 2×2", { cargos: 4, cursor: true }, () => {
+  drawStand({ cargos: {
+    "0,0": [2, 2, { bright: 210 }], "3,1": [2, 2, { bright: 210 }], "6,3": [1, 1, { bright: 210 }], "8,5": [1, 1, { bright: 210 }],
+  } });
+  cursorArrow(260, 240);
+});
+
+// S6: пустая сетка — сетка должна найтись, грузов 0
+scenario("S6 пустой прилавок", { cargos: 0, cursor: null }, () => {
+  drawStand({ cargos: {} });
+});
+
+// S7: 1×1 с текстом обычной яркости (180) — как в игре обычно
+scenario("S7 1×1 обычный текст (180)", { cargos: 4, cursor: null }, () => {
+  drawStand({ cargos: { "0,0": [2, 2], "3,1": [2, 2], "6,3": [1, 1], "8,5": [1, 1] } });
+}, [[6, 3], [8, 5]]);
+
+// S8: сетка у правого края кадра
+scenario("S8 прилавок прижат к правому краю кадра", { cargos: 3, cursor: null }, () => {
+  drawStand({ x0: 1600 - 120 * 9 - 20, cargos: { "0,0": [2, 2], "3,1": [2, 2], "7,4": [1, 1] } });
+});
+
+// ---- проверка ----
+function summarize(det) {
+  if (!det) return { grid: false };
+  const cargos = (det.cargos || []).map(c => ({ q: c.q, r: c.r, w: c.w, h: c.h, partial: !!c.partial }));
+  return { grid: true, pitch: Math.round(det.pitch), rows: det.rows, cursor: det.cursor ?? null, cargos, cells: det.cells, cursorFieldPresent: "cursor" in det };
+}
+
+async function runAll() {
+  out.textContent = "";
+  const lines = [];
+  let pass = 0, fail = 0;
+  for (const s of SCENARIOS) {
+    s.draw();
+    const det = await detect();
+    const sum = summarize(det);
+    const gotCargos = sum.cargos ? sum.cargos.filter(c => !c.partial).length : 0;
+    const gotCursor = !!(sum.cursor && sum.cursor.x != null);
+    const okCargo = gotCargos === s.expect.cargos;
+    const okCursor = s.expect.cursor == null ? true : gotCursor === s.expect.cursor;
+    const ok = okCargo && okCursor;
+    ok ? pass++ : fail++;
+    lines.push(`[${ok ? "OK " : "FAIL"}] ${s.name}`);
+    lines.push(`   сетка: ${sum.grid ? `найдена, pitch ${sum.pitch}, рядов ${sum.rows}` : "НЕ найдена"}; поле cursor в ответе: ${sum.cursorFieldPresent ? "да" : "НЕТ (потеряно воркером)"}`);
+    lines.push(`   грузов в трекере: ${gotCargos} (ожидалось ${s.expect.cargos})${sum.cargos && sum.cargos.length !== gotCargos ? `, partial: ${sum.cargos.filter(c => c.partial).map(c => `${c.q},${c.r} ${c.w}x${c.h}`).join("; ")}` : ""}`);
+    if (sum.cells && s.debugCells) {
+      const kinds = s.debugCells.map(([q, r]) => `${q},${r}=${sum.cells[r]?.[q] ?? "?"}`).join(" ");
+      lines.push(`   клетки: ${kinds}`);
+    }
+    lines.push(`   курсор: ${gotCursor ? `${sum.cursor.x},${sum.cursor.y}` : "не найден"}${s.expect.cursor === true ? " (ожидался)" : ""}`);
+    lines.push("");
+  }
+  lines.push(`ИТОГО: ${pass} OK, ${fail} FAIL`);
+  out.textContent = lines.join("\n");
+}
+document.getElementById("run").onclick = runAll;
+document.getElementById("one").onclick = runAll;
+
+const wk = new Worker("js/grid-worker.js?v=" + Date.now(), { type: "module" });
+runAll();
+</script>
+</body>
+</html>

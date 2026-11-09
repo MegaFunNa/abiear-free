@@ -306,7 +306,30 @@ export class NccDetector {
     this.cluster = Math.round(this.opts.clusterSec * SR);
     this.past = Math.round(this.opts.pastSec * SR);
     this.future = Math.round(this.opts.futureSec * SR);
+    // Активный набор эталонов: вся библиотека, пока карту не выбрали (или выбрали — см. setActive).
+    this.tplUse = this.templates;
+    this.preUse = this.pre;
     this.reset();
+  }
+  // Ограничить распознавание звуками, возможными на выбранной карте/режиме: корреляции с
+  // остальными эталонами — чистая трата процессора (их грузы на этой карте не выпадают).
+  // ids == null или пустой набор — снова вся библиотека.
+  setActive(ids) {
+    if (ids == null) {
+      this.tplUse = this.templates;
+      this.preUse = this.pre;
+      return;
+    }
+    const keep = new Set(ids);
+    const list = this.templates.filter((t) => keep.has(t.soundId));
+    if (!list.length) {
+      this.tplUse = this.templates;
+      this.preUse = this.pre;
+      return;
+    }
+    this.tplUse = list;
+    const bases = new Set(list);
+    this.preUse = this.pre.filter((v) => bases.has(v.base));
   }
 
   reset() {
@@ -403,10 +426,10 @@ export class NccDetector {
       // Предотбор: только главная полоса каждого эталона; полный счёт — тем, у кого она хоть как-то похожа.
       let S;
       if (o.preThr > 0) {
-        const P = scoreWindow(X, this.pre, { ...o, useLF: false });
+        const P = scoreWindow(X, this.preUse, { ...o, useLF: false });
         const sel = [];
         S = new Map();
-        for (const v of this.pre) {
+        for (const v of this.preUse) {
           const s = P.get(v);
           let mx = -Infinity;
           for (let p = 0; p < this.hop; p++) if (s[p] > mx) mx = s[p];
@@ -417,12 +440,12 @@ export class NccDetector {
         for (const [t, s] of scoreWindow(X, sel, o)) S.set(t, s);
         this.selected = new Set(sel);
       } else {
-        S = scoreWindow(X, this.templates, o);
+        S = scoreWindow(X, this.tplUse, o);
         this.selected = null;
       }
       // Кандидаты: лучшее место каждого эталона в этом шаге.
       const tops = [];
-      for (const t of this.templates) {
+      for (const t of this.tplUse) {
         if (this.selected && !this.selected.has(t)) continue;
         const s = S.get(t);
         let bp = -1, bs = -Infinity;
@@ -438,7 +461,7 @@ export class NccDetector {
       if (best && best.score >= o.fastMin) {
         const near = Math.round(0.05 * SR);
         let second = null;
-        for (const t of this.templates) {
+        for (const t of this.tplUse) {
           if (t.soundId === best.template.soundId) continue;
           const s = S.get(t);
           for (let p = Math.max(0, best.rel - near); p <= Math.min(this.hop - 1, best.rel + near); p++) {

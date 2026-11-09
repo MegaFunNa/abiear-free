@@ -847,6 +847,16 @@ body.mini .category-prob b { font-size: 14px; }
   font-size: clamp(28px, calc(var(--gcell) * 0.78), 62px);
   filter: drop-shadow(0 0 12px rgba(255, 70, 70, 0.55)) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.8));
 }
+/* Пульс 💎: алмаз «дышит» — вырастает до размера груза (предел задаётся инлайн как
+   --gem-max по меньшей стороне груза) и возвращается к текущему размеру. Анимируется
+   только transform — композитор, без перерисовки и без затрат фпс у игры.
+   1.6s = GEM_PULSE_MS в js/app.js (синхронизация фазы при пересборке сетки). */
+.g-gem.gem-pulse { animation: gem-pulse 1.6s ease-in-out infinite; will-change: transform; }
+@keyframes gem-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(var(--gem-max, 1.2)); }
+}
+@media (prefers-reduced-motion: reduce) { .g-gem.gem-pulse { animation: none; } }
 
 /* приписка «Unlimited» к логотипу (в консоли site.css не загружается — правило нужно и здесь) */
 .brand-suffix { display: inline-block; margin-left: 6px; padding: 3px 7px 2px; border: 1px solid var(--accent-line); border-radius: 999px;

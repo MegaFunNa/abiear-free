@@ -19,6 +19,9 @@ self.onmessage = (e) => {
   } else if (m.type === "reset") {
     det?.reset();
     fed = 0;
+  } else if (m.type === "active") {
+    // Активный набор эталонов: только звуки, возможные на выбранной карте (меньше корреляций — меньше CPU).
+    det?.setActive?.(m.ids ? new Set(m.ids) : null);
   } else if (m.type === "audio" && det) {
     const t0 = performance.now();
     const hits = det.feed(m.block);
