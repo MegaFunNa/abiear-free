@@ -5289,7 +5289,10 @@ var LOCK_MAX_MS = 4e3;
 var LABEL_LOAD_MS = 500;
 var LOCK_HARD_MS = 2e4;
 async function scanGrid(frame) {
-  if (linking > 0) return;
+  // v18.60: скан больше не останавливается на время привязки звука (было linking>0 — возврат).
+  // Красное от только что взятого груза вспыхивает как раз в эту паузу: живой скан его не видел,
+  // flow.holdKey не ставился, и звук оставался без привязки. Скан продолжает работать; задания
+  // детекции идут в тот же воркер по очереди, взаимных конфликтов нет (ответы маршрутизируются по id).
   const fresh = grid.full && frame.at - grid.fullAt < scanCfg().full;
   const light = fresh && (tracker.locked || frame.at - tracker.changedAt > LIGHT_EARLY_MS && !labelsLeft());
   const every = light ? labels.ready ? scanCfg().light : LABEL_LOAD_MS : grid.seen ? GRID_EVERY_MS : GRID_IDLE_MS;
@@ -5510,6 +5513,16 @@ async function linkCargo(ev) {
     return null;
   };
   const near = (f) => f.at > redFrom && (ev.delay || f.at <= click + RED_NEAR_MS) && mine(f);
+  // v18.60: у NCC-событий (delay=0) время щелчка точное — звук и есть момент взятия.
+  // Красное «этого» взятия не бывает старше звука на ~0.3 с (джиттер аудиобуфера): старое окно
+  // ±1.5 с цепляло красное ПРЕДЫДУЩЕГО груза, и быстрый тап по следующему грузу получал чужой
+  // вердикт. Для старого детектора (клик — оценка по задержке) окно прежнее.
+  const holdLo = ev.delay ? ev.at - 1500 : ev.at - 300;
+  // красное этого взятия уже видели живым сканом (последний кадр красного рядом со звуком)
+  const heldSeen = () => flow.holdKey && flow.holdSeen >= holdLo && flow.holdSeen <= ev.at + 400 ? tracker.cargos.get(flow.holdKey) ?? null : null;
+  // серия красного началась у этого взятия (для ожидания после щелчка: серия может длиться
+  // сколько угодно, важно когда она НАЧАЛАСЬ — flow.holdAt сбрасывается при смене груза/паузе)
+  const heldStarted = () => flow.holdKey && flow.holdAt >= holdLo && flow.holdAt <= ev.at + 400 ? tracker.cargos.get(flow.holdKey) ?? null : null;
   const redFrames = reader.frames.filter(near);
   let boundHow = null;
   let g = await redIn(ev.delay ? redFrames.reverse() : redFrames);
@@ -5518,15 +5531,13 @@ async function linkCargo(ev) {
     update();
     return linked();
   }
-  if (flow.holdKey && flow.holdSeen >= ev.at - 1500 && flow.holdSeen <= ev.at + 400) {
-    g = tracker.cargos.get(flow.holdKey) ?? null;
-    if (g) {
-      ev.how = "hold";
-      gridLog(`звук ${when}: груз ${g.key} держали в руке (красное) — привязал к нему`);
-      placeCargo(ev, g);
-      update();
-      return linked();
-    }
+  g = heldSeen();
+  if (g) {
+    ev.how = "hold";
+    gridLog(`звук ${when}: груз ${g.key} держали в руке (красное) — привязал к нему`);
+    placeCargo(ev, g);
+    update();
+    return linked();
   }
   const fresh = (x) => x.key && x.at <= click - 50 && x.at >= click - HOVER_MAX_MS;
   const h = grid.hoverLog.filter(fresh).at(-1);
@@ -5545,15 +5556,31 @@ async function linkCargo(ev) {
     }
   }
   const recent = grid.hoverLog.some(fresh);
-  const before = g || !recent ? [] : reader.frames.filter((f) => f.at <= click - 50 && f.at >= click - HOVER_MAX_MS).reverse().slice(0, 2);
-  if (!g && !recent) gridLog(`звук ${when}: свежего наведения нет (${HOVER_MAX_MS / 1e3} с) — к грузу не привязываю`);
+  // v18.60: раньше при пустой истории наведений кадры до щелчка не проверялись вовсе — и
+  // привязка умирала именно там, где наведение потерялось: плашка закрыла курсор
+  // (пользователь стоит на грузе и берёт его), а перечитать кадры никто не пробовал.
+  // Теперь кадры до щелчка проверяются всегда: сначала подсветка в игре (кадр видит её
+  // независимо от детектора курсора), потом строгий угол плашки на клетках груза —
+  // то же правило, что у живого «наведения по подсказке».
+  const before = g ? [] : reader.frames.filter((f) => f.at <= click - 50 && f.at >= click - HOVER_MAX_MS).reverse().slice(0, 2);
+  if (!g && !recent) gridLog(`звук ${when}: свежего наведения нет (${HOVER_MAX_MS / 1e3} с) — проверяю кадры до щелчка`);
   for (const f of before) {
     const det = await linkDetect(() => detectFrame(f));
     const hov = det?.cargos.find((c) => c.hover);
     g = hov && tracker.locate(det, hov);
-    gridLog(`звук ${when}: кадр −${ev.at - f.at} мс, ${!det ? "сетки нет" : !hov ? "подсветки нет" : g ? `наведён груз ${g.key}` : "груз не найден в сетке"}`);
+    let from = "frame";
+    if (!g && det?.tips?.length) {
+      const sh = tracker.matchShift(det) ?? tracker.shift;
+      for (const c of tracker.cargos.values()) {
+        if (!tracker.tipCell(det, c, sh, true)) continue;
+        g = c;
+        from = "tip";
+        break;
+      }
+    }
+    gridLog(`звук ${when}: кадр −${ev.at - f.at} мс, ${!det ? "сетки нет" : !hov ? "подсветки нет" : g ? `наведён груз ${g.key}${from === "tip" ? " (угол плашки)" : ""}` : "груз не найден в сетке"}`);
     if (g) {
-      boundHow = "frame";
+      boundHow = from;
       break;
     }
   }
@@ -5566,10 +5593,25 @@ async function linkCargo(ev) {
     gridLog(`звук ${when}: ГРУЗ НЕ НАЙДЕН — звук остался без привязки (шансы посчитаны «по любому грузу»)`);
   }
   linked();
-  if (!ev.delay) return;
+  // v18.60: красное ждём для всех событий, а не только для старого детектора. У NCC-звуков
+  // (точное время взятия) красное появляется сразу ПОСЛЕ щелчка — раньше его не видел ни один
+  // путь: живой скан стоял на паузе привязки, а сохранённые кадры идут раз в ~0.3 с и короткую
+  // вспышку красного пропускали. Теперь живой скан продолжает работать и ставит flow.holdKey,
+  // а мы перечитываем и его, и новые кадры. Привязка считается только по серии красного,
+  // начавшейся у ЭТОГО щелчка (holdAt); следующий звук прерывает ожидание.
   const until = Date.now() + RED_WAIT_MS;
   while (Date.now() < until && reader.canRead) {
     await new Promise((r) => setTimeout(r, 400));
+    const held = heldStarted();
+    if (held) {
+      ev.how = "hold";
+      gridLog(`звук ${when}: груз ${held.key} держали в руке (красное, живой скан) — привязал`);
+      if (held !== ev.cargo) {
+        placeCargo(ev, held);
+        update();
+      }
+      return;
+    }
     const red = await redIn(reader.frames.filter((f) => near(f) && !tried.has(f)));
     if (red) {
       ev.how = "red";
