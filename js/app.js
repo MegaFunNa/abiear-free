@@ -3336,14 +3336,29 @@ var GridTracker = class {
     }
     this.misses = 0;
     this.shift = s;
-    const { r0, r1 } = this.bounds();
     let changed = false;
     for (const c of full) {
       const cells = cellsOf(c, s);
       const occ = this.occupancy();
-      if (cells.some((k) => occ.has(k))) continue;
-      this.add({ q: c.q, r: c.r + s, w: c.w, h: c.h, full: true }, now);
-      changed = true;
+      const hit = [...new Set(cells.map((k) => occ.get(k)).filter(Boolean))];
+      if (!hit.length) {
+        this.add({ q: c.q, r: c.r + s, w: c.w, h: c.h, full: true }, now);
+        changed = true;
+        continue;
+      }
+      // Груз под плашкой подсказки собирается обрезком: 1×2 → «1×1 из нижней клетки».
+      // В сохранённой сетке такой обрезок занимал клетку навсегда, и настоящий размер
+      // уже не вставал (наведение и цена не работали). Если всё, что занимает клетки нового
+      // груза, — вложенные в него обрезки поменьше, заменяем их на настоящий груз.
+      const scraps = hit.length >= 1 && c.w * c.h >= 2 && hit.every((g) => g.w * g.h < c.w * c.h && cellsOf(g).every((k) => cells.includes(k)));
+      if (scraps) {
+        for (const old of hit) {
+          this.log(`груз ${old.key} ${old.w}×${old.h} — обрезок под плашкой, заменён на ${c.w}×${c.h}`);
+          this.drop(old, now);
+        }
+        this.add({ q: c.q, r: c.r + s, w: c.w, h: c.h, full: true }, now);
+        changed = true;
+      }
     }
     if (changed) this.version++;
     return changed;
@@ -3704,9 +3719,9 @@ async function unstrikeText(worker, image, bbox, rows) {
     const cx = c.getContext("2d", { willReadFrequently: true });
     cx.imageSmoothingEnabled = true;
     cx.drawImage(tmp, 0, 0, c.width, c.height);
-    const prevPsm = worker.setParameters ? await worker.setParameters({ tessedit_pageseg_mode: "7" }).then(() => "7") : null;
+    // Читаем на стоящем режиме воркера (PSM 11): любые переключатели режима рядом
+    // с recognize ломали освобождение памяти в ядре tesseract.
     const { data: data2 } = await worker.recognize(c);
-    if (prevPsm) await worker.setParameters({ tessedit_pageseg_mode: "3" });
     return (data2.text ?? "").replace(/\s+/g, " ").trim();
   } catch {
     return "";
@@ -3752,6 +3767,30 @@ var dist = (a, b) => {
   const [ax, ay] = center(a), [bx, by] = center(b);
   return Math.hypot(ax - bx, ay - by);
 };
+// tesseract.js 5.1.1 течёт ~19 МБ НА КАЖДЫЙ recognize (страница внутри ядра не чистится):
+// за пару минут чтения цен рендерер распухал до 3 ГБ, вкладка падала, а рядом задыхалась игра
+// («лаги не сразу, фпс до 18»). reinitialize() освобождает память (~35 мс) — переинициализируем
+// воркер периодически, распознавание при этом не прерывается.
+var TESS_RECYCLE = 12;
+// PSM задаём конфигом при init и reinitialize: ни setParameters, ни options на recognize.
+// Замеры RSS показали: и то и другое рядом с recognize/reinitialize ломает освобождение памяти
+// (утечка ~19 МБ/вызов продолжает жить даже с перезапусками), а конфиг при Init — чист.
+function tessRecycled(worker, lang, config) {
+  let calls = 0;
+  const orig = worker.recognize.bind(worker);
+  worker.recognize = async (...args) => {
+    const res = await orig(...args);
+    if (++calls >= TESS_RECYCLE) {
+      calls = 0;
+      try {
+        await worker.reinitialize(lang, 1, config);
+      } catch {
+      }
+    }
+    return res;
+  };
+  return worker;
+}
 var TooltipReader = class _TooltipReader {
   constructor(model2) {
     this.model = model2;
@@ -3784,11 +3823,10 @@ var TooltipReader = class _TooltipReader {
         workerBlobURL: false,
         gzip: true
       };
-      const worker = await window.Tesseract.createWorker(lang.split("+"), 1, tessOpts);
-      await worker.setParameters({ tessedit_pageseg_mode: "11" });
+      const worker = await window.Tesseract.createWorker(lang.split("+"), 1, tessOpts, { tessedit_pageseg_mode: "11" });
       this.worker = worker;
       this.lang = lang;
-      return worker;
+      return tessRecycled(worker, lang, { tessedit_pageseg_mode: "11" });
     })();
     this.loading.catch(() => {
       this.loading = null;
@@ -4102,10 +4140,9 @@ var LabelReader = class {
         workerBlobURL: false,
         gzip: true
       };
-      const worker = await window.Tesseract.createWorker(lang.split("+"), 1, tessOpts);
-      await worker.setParameters({ tessedit_pageseg_mode: "6" });
+      const worker = await window.Tesseract.createWorker(lang.split("+"), 1, tessOpts, { tessedit_pageseg_mode: "6" });
       this.worker = worker;
-      return worker;
+      return tessRecycled(worker, lang, { tessedit_pageseg_mode: "6" });
     })();
     this.loading.catch(() => {
       this.loading = null;
@@ -5363,6 +5400,7 @@ function trackHover(det, frame, image) {
     if (g) {
       g.priceTries = 0;
       g.bigTries = 0;
+      g.priceSig = null;
     }
   }
   if (hoverKey) grid.hoverLastAt = frame.at;
@@ -6027,6 +6065,16 @@ var DONE_MS = 15e3;
 var CHECK_MAX_MS = 8e3;
 var flow = { holdKey: null, holdAt: 0, holdSeen: 0, key: "" };
 var hoverOcr = { busy: false, key: null };
+var cropSig = (cg, w, h) => {
+  try {
+    const d = cg.getImageData(0, 0, w, h).data;
+    let s = 2166136261;
+    for (let i = 0; i < d.length; i += 64) s = Math.imul(s ^ d[i], 16777619) >>> 0;
+    return `${s.toString(36)}:${w}x${h}`;
+  } catch {
+    return null;
+  }
+};
 function readHoverPrice(image, det, g, shift, tip) {
   if (!g || hoverOcr.busy || g.price != null && !g.priceGuess || (g.priceTries ?? 0) >= HOVER_TRIES || (g.priceScans ?? 0) >= HOVER_SCANS) return;
   if (!tip && Date.now() - grid.hoverSince < TIP_WAIT_MS) return;
@@ -6055,13 +6103,23 @@ function readHoverPrice(image, det, g, shift, tip) {
   const cg = crop.getContext("2d", { willReadFrequently: true });
   if (small) cg.imageSmoothingQuality = "high";
   cg.drawImage(image, x0, y0, x1 - x0, y1 - y0, 0, 0, crop.width, crop.height);
+  // Курсор стоит — плашка и её кроп не меняются. Раньше один и тот же кусок читался заново до 14 раз
+  // (каждые ~0.3 с), пережигая процессор рядом с игрой. Тот же кроп в том же режиме — пропускаем OCR;
+  // попытку считаем, чтобы после 4 неудач рамка расширилась и чтение пошло с другой площадки.
+  const mode = small ? g.priceScans % 2 ? "raw" : "bright" : g.priceScans % 2 ? "bright" : "raw";
+  const sig = cropSig(cg, crop.width, crop.height);
+  if (sig != null && g.priceSig === `${mode}|${grow}|${sig}`) {
+    g.priceTries = (g.priceTries ?? 0) + 1;
+    g.priceScans = (g.priceScans ?? 0) + 1;
+    return;
+  }
+  if (sig != null) g.priceSig = `${mode}|${grow}|${sig}`;
   if (big) g.bigTries = (g.bigTries ?? 0) + 1;
   g.priceTries = (g.priceTries ?? 0) + 1;
   g.priceScans = (g.priceScans ?? 0) + 1;
   hoverOcr.busy = true;
   hoverOcr.key = g.key;
   flowTick();
-  const mode = small ? g.priceScans % 2 ? "raw" : "bright" : g.priceScans % 2 ? "bright" : "raw";
   const t0 = performance.now(), how = `${tip ? "плашка" : "кусок"} ${crop.width}×${crop.height} ${mode}`;
   reader.recognize(crop, mode).then((lines) => {
     const ms = Math.round(performance.now() - t0);

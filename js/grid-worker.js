@@ -301,8 +301,10 @@
     const red = [];
     for (let r = 0; r < rows; r++) for (let q = 0; q < GRID_COLS; q++) if (isRed(q, r)) red.push([q, r]);
     const redSet = new Set(red.map(([q, r]) => `${q},${r}`));
-    const tips = findTips(lum, W, H, xs, ys, pitch);
-    const inTip = (x, y) => tips.some((t) => tipHide(t, lum, W, pitch, xs) && x >= t.x0 && x <= t.x1 && y >= t.y0 && y <= t.y1);
+    // Плашки, пережившие tipHide: чёрные поля кадра (во всю ширину) сюда больше не попадают —
+    // раньше они прикидывались подсказками и уводили чтение цены верхних рядов на черноту.
+    const tips = findTips(lum, W, H, xs, ys, pitch).filter((t) => tipHide(t, lum, W, pitch, xs));
+    const inTip = (x, y) => tips.some((t) => x >= t.x0 && x <= t.x1 && y >= t.y0 && y <= t.y1);
     const cells = fills.map((row, r) => row.map((f, q) => {
       if (redSet.has(`${q},${r}`)) return "hidden";
       if (inTip((xs[q] + xs[q + 1]) / 2, (ys[r] + ys[r + 1]) / 2)) return "hidden";
@@ -497,7 +499,7 @@
       c.hover = c === hov?.c;
       delete c.tone;
     }
-    return { pitch, xs, ys, rows, cells, cargos, red, fills, tips, vEdges, hEdges, dropped, cursor: findCursor(L, W, H, xs, ys, rows), comb: { off: gx.off, p: gx.p, v: gx.v } };
+    return { pitch, xs, ys, rows, cells, cargos, red, fills, tips, vEdges, hEdges, dropped, cursor: findCursor(L, W, H, xs, ys, rows, tips), comb: { off: gx.off, p: gx.p, v: gx.v } };
   }
   function cellStats(L, px, W, x0, x1, y0, y1, pitch) {
     const m = Math.round(pitch * 0.12), v = [], rg = [], bg = [], lo = [];
@@ -622,8 +624,9 @@
     for (let r = 0; r < rows; r++) offLines += hits(Math.round((ys[r] + ys[r + 1]) / 2));
     if (onLines < 2 * offLines + rows) return null;
     const fills = [], cells = [], red = [];
-    const tips = findTips(lum, W, H, xs, ys, pitch);
-    const inTip = (x, y) => tips.some((t) => tipHide(t, lum, W, pitch, xs) && x >= t.x0 && x <= t.x1 && y >= t.y0 && y <= t.y1);
+    // как в полном скане: чёрные поля кадра не прикидываются плашками
+    const tips = findTips(lum, W, H, xs, ys, pitch).filter((t) => tipHide(t, lum, W, pitch, xs));
+    const inTip = (x, y) => tips.some((t) => x >= t.x0 && x <= t.x1 && y >= t.y0 && y <= t.y1);
     let same = 0, differ = 0;
     for (let r = 0; r < rows; r++) {
       const fr = [], cr = [];
@@ -647,7 +650,7 @@
     }
     if (differ > Math.max(2, (same + differ) * 0.1)) return null;
     const back = (t) => t && { x0: t.x0 + ox, y0: t.y0 + oy, x1: t.x1 + ox, y1: t.y1 + oy };
-    const cu = findCursor(L, W, H, xs, ys, rows);
+    const cu = findCursor(L, W, H, xs, ys, rows, tips);
     return { light: true, pitch, xs: prev.xs, ys: prev.ys, rows, cells, cargos: [], red, fills, tips: tips.map(back), cursor: cu ? { x: cu.x + ox, y: cu.y + oy } : null };
   }
   function tipHide(t, lum, W, pitch, xs) {
@@ -665,16 +668,22 @@
   var CURSOR_MAX_PX = 1500;
   var CURSOR_W = 42;
   var CURSOR_H = 54;
-  function findCursor(L, W, H, xs, ys, rows) {
+  function findCursor(L, W, H, xs, ys, rows, tips) {
     const x0 = Math.max(0, Math.round(xs[0])), x1 = Math.min(W - 1, Math.round(xs[GRID_COLS]));
     const y0 = Math.max(0, Math.round(ys[0])), y1 = Math.min(H - 1, Math.round(ys[rows]));
     const cols = x1 - x0 + 1, rowsN = y1 - y0 + 1;
     if (cols < 12 || rowsN < 12) return null;
+    // Плашка подсказки открывается прямо под курсором: её белая рамка и текст ярче порога
+    // курсора, и детектор принимал их за стрелку — курсор «уезжал» на клетку-две в сторону,
+    // а цена плашки писалась соседнему грузу (у узких 1×2 это убивало чтение совсем).
+    // Пиксели плашек (с запасом 2px) в поиске курсора не участвуют: остриё стрелки
+    // обычно торчит над левым верхним углом плашки.
+    const box2 = tips?.length ? (x, y) => tips.some((t) => t.x0 - 2 <= x && x <= t.x1 + 2 && t.y0 - 2 <= y && y <= t.y1 + 2) : () => false;
     const rowN = new Int32Array(y1 + 2), colN = new Int32Array(x1 + 2);
     let total = 0;
     for (let y = y0; y <= y1; y++) {
       const r = y * W;
-      for (let x = x0; x <= x1; x++) if (L[r + x] >= CURSOR_LUM) {
+      for (let x = x0; x <= x1; x++) if (L[r + x] >= CURSOR_LUM && !box2(x, y)) {
         rowN[y]++;
         colN[x]++;
         total++;
@@ -710,20 +719,20 @@
         }
       }
     }
-    return findCursorShape(L, W, x0, x1, y0, y1);
+    return findCursorShape(L, W, x0, x1, y0, y1, box2);
   }
   // Запасной путь, когда текст подписей почти того же цвета, что курсор: быстрый путь
   // ломается (текст поднимает счётчики строк/столбцов). Ищем саму форму стрелки Windows:
   // цепочку узких ярких полос с почти вертикальным левым краем, растущих сверху вниз,
   // с узким «хвостом» ниже самой широкой строки. Буквы текста такую форму не дают.
-  function findCursorShape(L, W, x0, x1, y0, y1) {
+  function findCursorShape(L, W, x0, x1, y0, y1, box2 = () => false) {
     const RUN_MAX = 24;
     const rows2 = [];
     for (let y = y0; y <= y1; y++) {
       const r = y * W;
       let runs = [], start = -1;
       for (let x = x0; x <= x1 + 1; x++) {
-        const on = x <= x1 && L[r + x] >= CURSOR_LUM;
+        const on = x <= x1 && L[r + x] >= CURSOR_LUM && !box2(x, y);
         if (on && start < 0) start = x;
         else if (!on && start >= 0) {
           if (x - start <= RUN_MAX) runs.push([start, x - 1]);
