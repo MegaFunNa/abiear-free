@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<title>Стенд 2×1 + плашка (разработческий)</title>
+<style>
+  body { background: #101418; color: #dfe8f2; font: 14px/1.5 "Segoe UI", sans-serif; margin: 20px; }
+  pre { background: #0a0e12; border: 1px solid #233; padding: 10px; max-height: 520px; overflow: auto; white-space: pre-wrap; }
+  .ok { color: #7ee787; } .bad { color: #ff7b72; }
+  canvas { display: none; }
+</style>
+</head>
+<body>
+<h1>Стенд 2×1 + плашка под курсором</h1>
+<p>Курсор наводится на лежачий груз 2×1, плашка подсказки — как в игре. Проверяем: курсор детектится в клетке настоящего груза, а не «уезжает» на соседа. Сценарии T1–T4 — базовые геометрии плашки; T5 — шовная (плашка прячет только правую клетку): до v18.59 её нижняя яркая кромка протекала в счётчики курсора мимо исключения, и курсор «прилипал» к рамке плашки.</p>
+<p>Для A/B со старым воркером: <code>git show 791ae86:js/grid-worker.js &gt; js/grid-worker-old.js</code> и открыть <code>?w=old</code> — T2/T3/T5 должны упасть.</p>
+<pre id="out">—</pre>
+<canvas id="cv" width="1600" height="1000"></canvas>
+
+<script>
+const W = 1600, H = 1000, GRID_COLS = 9;
+const out = document.getElementById("out");
+const cv = document.getElementById("cv");
+const g = cv.getContext("2d", { willReadFrequently: true });
+const lum = (v) => `rgb(${v},${v},${v})`;
+function vline(x, y0, y1, v) { g.fillStyle = lum(v); g.fillRect(x - 1, y0, 2, y1 - y0); }
+function hline(y, x0, x1, v) { g.fillStyle = lum(v); g.fillRect(x0, y - 1, x1 - x0, 2); }
+function cargoCell(x0, y0, x1, y1) {
+  g.fillStyle = lum(38); g.fillRect(x0 + 3, y0 + 3, x1 - x0 - 6, y1 - y0 - 6);
+  const iw = (x1 - x0) * 0.5, ih = (y1 - y0) * 0.5;
+  g.fillStyle = lum(70);
+  g.fillRect((x0 + x1) / 2 - iw / 2, (y0 + y1) / 2 - ih / 2, iw, ih);
+}
+function labelText(x0, y0, x1, y1) {
+  const w = x1 - x0, h = y1 - y0;
+  g.save(); g.beginPath(); g.rect(x0 + 2, y0 + 2, w - 4, h - 4); g.clip();
+  g.font = `bold ${Math.min(24, h * 0.2)}px sans-serif`;
+  g.fillStyle = lum(180);
+  g.fillText("Загадочный", x0 + w * 0.06, y0 + Math.min(24, h * 0.2) + 4);
+  g.restore();
+}
+function cursorArrow(px, py) {
+  g.fillStyle = "#f0f0f0";
+  const rows = [1,2,3,4,5,6,7,8,9,10,11,12,8,6,4,4,4,4,4];
+  let y = py;
+  for (const w of rows) { g.fillRect(px, y, w, 1); y += 1; }
+  return { tipX: px, tipY: py, w: 12, h: y - py };
+}
+function tooltip(tx, ty, tw = 240, th = 92) {
+  g.fillStyle = "#000"; g.fillRect(tx, ty, tw, th);
+  g.strokeStyle = "#e8e8e8"; g.lineWidth = 2; g.strokeRect(tx + 1, ty + 1, tw - 2, th - 2);
+  g.fillStyle = "#e0e0e0"; g.font = "24px sans-serif";
+  g.fillText("Загадочный груз", tx + 14, ty + 34);
+  g.fillText("70 000", tx + 14, ty + 66);
+}
+function drawStand({ x0 = 140, y0 = 90, pitch = 120, rows = 7, cargos = {} }) {
+  g.fillStyle = "#060606"; g.fillRect(0, 0, W, H);
+  const xs = Array.from({ length: GRID_COLS + 1 }, (_, k) => x0 + k * pitch);
+  const ys = Array.from({ length: rows + 1 }, (_, k) => y0 + k * pitch);
+  for (let k = 0; k <= GRID_COLS; k++) vline(xs[k], ys[0], ys[rows], 62);
+  for (let k = 0; k <= rows; k++) hline(ys[k], xs[0], xs[GRID_COLS], 62);
+  const occ = new Set();
+  for (const [key, spec] of Object.entries(cargos)) {
+    const [q, r] = key.split(",").map(Number);
+    const [w, h] = spec;
+    for (let dq = 0; dq < w; dq++) for (let dr = 0; dr < h; dr++) occ.add(`${q + dq},${r + dr}`);
+    cargoCell(xs[q], ys[r], xs[q + w], ys[r + h]);
+    labelText(xs[q], ys[r], xs[q + w], ys[r + h]);
+  }
+  for (let r = 0; r < rows; r++) for (let q = 0; q < GRID_COLS; q++) {
+    if (occ.has(`${q},${r}`)) continue;
+    labelText(xs[q], ys[r], xs[q + 1], ys[r + 1]);
+  }
+  return { xs, ys };
+}
+let seq = 0;
+function askWorker(bitmap) {
+  return new Promise((resolve) => {
+    const id = ++seq;
+    const t = setTimeout(() => resolve(null), 5000);
+    wk.onmessage = ({ data }) => {
+      if (data.id !== id) return;
+      clearTimeout(t);
+      resolve(data.det);
+    };
+    wk.postMessage({ id, bitmap }, [bitmap]);
+  });
+}
+async function detect() {
+  const bitmap = await createImageBitmap(cv);
+  return askWorker(bitmap);
+}
+
+// ---- сценарии: cursorQ/cursorR — клетка, где ДОЛЖЕН быть курсор ----
+const SCENARIOS = [];
+function scenario(name, expect, draw) { SCENARIOS.push({ name, expect, draw }); }
+
+const BASE2x1 = { "0,0": [2, 2], "4,2": [2, 1], "6,2": [1, 1], "8,5": [1, 1] };
+const LEFT_CELL = { px: 140 + 4 * 120 + 45, py: 90 + 2 * 120 + 45 }; // центр клетки 4,2
+
+// T1: контроль — курсор над левой клеткой 2×1, плашки нет
+scenario("T1 контроль: 2×1 без плашки, курсор на левой клетке", { cursorCell: [4, 2] }, () => {
+  drawStand({ cargos: BASE2x1 });
+  cursorArrow(LEFT_CELL.px, LEFT_CELL.py);
+});
+
+// T2: репро бага — плашка как в игре, прямо под остриём (накрывает стрелку и правую клетку 2×1)
+scenario("T2 репро: плашка под остриём (вправо), 2×1 у cursора", { cursorCell: [4, 2] }, () => {
+  drawStand({ cargos: BASE2x1 });
+  const a = cursorArrow(LEFT_CELL.px, LEFT_CELL.py);
+  tooltip(a.tipX + 6 - 8, a.tipY + 6 - 2); // top-left плашки: (px-2, py+4)
+});
+
+// T3: зеркало — 2×1 правее, курсор на его правой клетке, плашка уходит влево
+scenario("T3 зеркало: плашка слева от курсора, 2×1 у cursора", { cursorCell: [6, 2] }, () => {
+  drawStand({ cargos: { "0,0": [2, 2], "4,2": [1, 1], "5,2": [2, 1], "8,5": [1, 1] } });
+  const px = 140 + 6 * 120 + 45, py = 90 + 2 * 120 + 45; // центр клетки 6,2 (правая клетка 2×1 с q=5)
+  const a = cursorArrow(px, py);
+  tooltip(a.tipX + 6 - 240 - 6, a.tipY + 6 - 8); // плашка целиком слева
+});
+
+// T4: плашка справа от курсора без перекрытия стрелки
+scenario("T4 плашка справа, без перекрытия стрелки", { cursorCell: [4, 2] }, () => {
+  drawStand({ cargos: BASE2x1 });
+  const a = cursorArrow(LEFT_CELL.px, LEFT_CELL.py);
+  tooltip(a.tipX + 6 + 10, a.tipY + 6 - 8);
+});
+
+// T5: обрезок — плашка прячет ТОЛЬКО правую клетку 2×1 (и соседа), левая чистая
+scenario("T5 обрезок: плашка прячет правую клетку 2×1", { cursorCell: [4, 2] }, () => {
+  drawStand({ cargos: BASE2x1 });
+  cursorArrow(140 + 5 * 120 - 14, 90 + 2 * 120 + 42); // стрелка у шва, в левой клетке
+  tooltip(742, 90 + 2 * 120 + 42 + 6 - 8);            // плашка: 742..982, прячем 5,2 и 6,2
+});
+
+function cellOf(det, x, y) {
+  if (x == null) return null;
+  let q = -1, r = -1;
+  for (let k = 0; k < det.xs.length - 1; k++) if (x >= det.xs[k] && x < det.xs[k + 1]) { q = k; break; }
+  for (let k = 0; k < det.ys.length - 1; k++) if (y >= det.ys[k] && y < det.ys[k + 1]) { r = k; break; }
+  return q >= 0 && r >= 0 ? [q, r] : null;
+}
+
+async function runAll() {
+  const lines = [];
+  let pass = 0, fail = 0;
+  for (const s of SCENARIOS) {
+    s.draw();
+    const det = await detect();
+    if (!det) { fail++; lines.push(`[FAIL] ${s.name}\n   воркер не ответил\n`); continue; }
+    const cur = det.cursor;
+    const cell = cur ? cellOf(det, cur.x, cur.y) : null;
+    const okCell = cell && cell[0] === s.expect.cursorCell[0] && cell[1] === s.expect.cursorCell[1];
+    const full = (det.cargos || []).filter((c) => !c.partial);
+    const ok = !!okCell;
+    ok ? pass++ : fail++;
+    lines.push(`[${ok ? "OK " : "FAIL"}] ${s.name}`);
+    lines.push(`   курсор: ${cur ? `${cur.x},${cur.y}` : "не найден"} → клетка ${cell ? cell.join(",") : "?"} (ожидалась ${s.expect.cursorCell.join(",")})`);
+    lines.push(`   плашек детектировано: ${(det.tips || []).length}${(det.tips || []).length ? " bbox: " + det.tips.map((t) => `${Math.round(t.x0)},${Math.round(t.y0)}..${Math.round(t.x1)},${Math.round(t.y1)}`).join(" | ") : ""}`);
+    lines.push(`   грузов полных: ${full.length} → ${full.map((c) => `${c.q},${c.r} ${c.w}×${c.h}`).join("; ")}`);
+    if (det.cells) lines.push(`   ряд 2 (q3..7): ${[3,4,5,6,7].map((q) => det.cells[2]?.[q] ?? "?").join(" ")}`);
+    if (det.dbg) lines.push(`   воркер-дебаг: ${det.dbg.join(" || ")}`);
+    lines.push("");
+  }
+  lines.push(`ИТОГО: ${pass} OK, ${fail} FAIL (воркер: ${workerFile})`);
+  out.textContent = lines.join("\n");
+}
+
+const wq = new URLSearchParams(location.search).get("w");
+const workerFile = wq === "old" && "grid-worker-old.js" || "grid-worker.js";
+const wk = new Worker("js/" + workerFile + "?v=" + Date.now(), { type: "module" });
+runAll();
+</script>
+</body>
+</html>
