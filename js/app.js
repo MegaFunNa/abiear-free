@@ -2609,7 +2609,12 @@ var GridTracker = class {
       if (f && det.cells[fr][q] === "cargo" && f[2] < DARK_MAX) all.push([`${q},${r}`, f, q, fr]);
     }
     const clean = foreign.length ? all.filter(([, , q, fr]) => tipCovers(det, q, fr, foreign) <= 0.15) : all;
-    for (const [k, f] of clean) yield [k, f];
+    // v18.65: страховка. Плашка подсказки у 1×1 и 1×2 накрывает груз целиком, и фильтр выше
+    // выкидывал ВСЕ его клетки — груз становился невидимым и для learn (яркость не запоминалась),
+    // и для hoverOf (прироста яркости не было) — наведение на мелкий груз пропадало совсем.
+    // Оставляем хотя бы самую чистую клетку: пусть с помехой, но груз остаётся наблюдаемым.
+    const cells = clean.length || !all.length ? clean : [all.reduce((a, b) => tipCovers(det, b[2], b[3], foreign) < tipCovers(det, a[2], a[3], foreign) ? b : a)];
+    for (const [k, f] of cells) yield [k, f];
   }
   // Запоминает обычную яркость клеток грузов. skip — грузы, которые сейчас могут быть наведены.
   learn(det, skip = [], shift = this.matchShift(det) ?? this.shift) {
@@ -2669,10 +2674,20 @@ var GridTracker = class {
       for (const g of this.cargos.values()) {
         const r = this.rectOf(det, g, shift);
         if (!r) continue;
+        // v18.65: плашку относим к грузу, который она НАКРЫВАЕТ сильнее всего (доля закрытых
+        // клеток), и только при равной доле — к ближайшему по углу. Раньше считалось только
+        // расстояние до углов: у 1×1 и 1×2 плашка во много раз больше груза, её углы оказывались
+        // ближе к соседям, плашка доставалась соседу, а для самого груза становилась «чужой» —
+        // и его клетки выбрасывались из visibleCells (наведение пропадало, звук цеплялся к соседу).
+        const w = Math.max(0, Math.min(t.x1, r.x1) - Math.max(t.x0, r.x0));
+        const h = Math.max(0, Math.min(t.y1, r.y1) - Math.max(t.y0, r.y0));
+        const share = w * h / Math.max(1, (r.x1 - r.x0) * (r.y1 - r.y0));
+        let d = Infinity;
         for (const [x, y] of [[t.x0, t.y0], [t.x1, t.y0], [t.x0, t.y1], [t.x1, t.y1]]) {
-          const d = Math.hypot(Math.max(r.x0 - x, x - r.x1, 0), Math.max(r.y0 - y, y - r.y1, 0));
-          if (!best || d < best.d) best = { g, d };
+          const dd = Math.hypot(Math.max(r.x0 - x, x - r.x1, 0), Math.max(r.y0 - y, y - r.y1, 0));
+          if (dd < d) d = dd;
         }
+        if (!best || share > best.share + 0.05 || share > best.share - 0.05 && d < best.d) best = { g, share, d };
       }
       if (best) map.set(t, best.g);
     }
@@ -4633,6 +4648,17 @@ async function scanGrid(frame) {
     if (trackHover(det, frame, image)) changed = true;
     if (changed) renderGridAll();
     else flowTick();
+    // v18.65: пока сетка не сохраняется, раз в 3 с пишем в журнал, ЧЕГО не хватает. Лог 11.11
+    // после сброса обрывался на «распознаватель подписей готов» — и всё: ни одной строки за
+    // следующие 27 с, «грузов 0», «сетка не сохранена». Почему не собралась сетка, по коду
+    // было не видно (update() молчит, когда в кадре меньше трёх целых грузов).
+    if (!tracker.locked && frame.at - (grid.diagAt ?? 0) > 3e3) {
+      const whole = det.cargos.filter((c) => !c.partial).length;
+      if (tracker.cargos.size < 4 || frame.at - (grid.hardAt || frame.at) > 6e3) {
+        grid.diagAt = frame.at;
+        gridLog(`сетка не сохраняется: в кадре ${whole} целых грузов (частичных ${det.cargos.length - whole}), собрано ${tracker.cargos.size}, сдвиг ${tracker.shift ?? "нет"}, покой ${((frame.at - tracker.changedAt) / 1e3).toFixed(1)} с, без подписей ${[...tracker.cargos.values()].filter((g) => g.typeId == null).length}`);
+      }
+    }
     await readLabels(image, det);
     const onScreen = (g) => frame.at - (g.seenAt ?? 0) < 2500;
     const ready = grid.hardAt && frame.at - grid.hardAt > LOCK_HARD_MS || grid.firstAt && frame.at - grid.firstAt > LOCK_MAX_MS || [...tracker.cargos.values()].filter(onScreen).every((g) => g.typeId != null || g.labelTries >= LABEL_TRIES || g.labelDone);
@@ -4678,6 +4704,13 @@ function trackHover(det, frame, image) {
     if (g && g.key !== grid.hoverKey) gridLog(`наведение по курсору: груз ${g.key}`);
   }
   if (!g) g = own ? own.g : near;
+  // v18.65: когда наведение не найдено, раз в 3 с пишем ПРИЧИНУ в журнал. Без этого «прога не
+  // понимает, куда я навожусь» было нечем подтвердить: по одной строке видно, чего не хватило —
+  // курсора, прироста яркости или плашки подсказки.
+  if (!g && !heldNow && frame.at - (grid.hoverMissAt ?? 0) > 3e3) {
+    grid.hoverMissAt = frame.at;
+    gridLog(`наведение не найдено: курсор ${det.cursor ? "есть" : "нет"}, плашек ${det.tips?.length ?? 0}, прирост яркости ${own ? own.by.toFixed(1) : "нет сравнения"} (нужно ${HOVER_RISE}), грузов ${tracker.cargos.size}`);
+  }
   if (!g && !heldNow && det.tips?.length) {
     for (const c of tracker.cargos.values()) {
       if (!tracker.tipCell(det, c, shift, true)) continue;
@@ -5128,7 +5161,9 @@ function resetAll() {
   state.showAll = false;
   ocrRun++;
   state.ocrBusy = false;
-  Object.assign(grid, { hoverKey: null, hoverSince: 0, hoverSinceKey: null, hoverCell: null, hoverLog: [], full: null, fullAt: 0, firstAt: 0, hardAt: 0, ocrAt: 0, seen: false, lastAt: 0, lastRead: null });
+  // v18.65: busy обнуляем тоже. Если сброс нажали во время скана, занятость оставалась висеть
+  // и до 15 с (GRID_STUCK_MS) гасила все новые сканы — сетка после сброса не искалась вообще.
+  Object.assign(grid, { busy: 0, hoverKey: null, hoverSince: 0, hoverSinceKey: null, hoverCell: null, hoverLog: [], full: null, fullAt: 0, firstAt: 0, hardAt: 0, ocrAt: 0, seen: false, lastAt: 0, lastRead: null });
   Object.assign(flow, { holdKey: null, holdAt: 0, holdSeen: 0, key: "" });
   miniPop = null;
   miniCur = null;
@@ -5136,7 +5171,10 @@ function resetAll() {
   update();
   renderGridAll();
 }
-$("gridReset").addEventListener("click", (e) => armReset(e.currentTarget));
+// v18.65: сброс снова по одному клику. Двухкликовая защита из v18.62 (armReset) мешала:
+// юзер жал «Сбросить», видел, что ничего не происходит, жал ещё раз — и каждый такой жест
+// обнулял grid.hardAt, то есть отсчёт до сохранения сетки начинался заново.
+$("gridReset").addEventListener("click", resetAll);
 function snapCargoSize(g, typeId = null, price = null) {
   if (!g || g.sizeFixed || !state.profileId) return;
   typeId ??= g.typeId ?? null;
