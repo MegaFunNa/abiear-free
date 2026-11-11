@@ -2301,824 +2301,11 @@ var median2 = (a) => {
   a.sort((x, y) => x - y);
   return a[a.length >> 1];
 };
-function luminance2(canvas) {
-  const W = canvas.width, H = canvas.height;
-  const px = canvas.getContext("2d", { willReadFrequently: true }).getImageData(0, 0, W, H).data;
-  const L2 = new Uint8Array(W * H);
-  for (let i = 0, j = 0; j < L2.length; i += 4, j++) L2[j] = 77 * px[i] + 150 * px[i + 1] + 29 * px[i + 2] >> 8;
-  return { L: L2, W, H, px };
-}
-var LINE_MIN = 22;
-var LINE_RISE = 8;
-var CARGO_FILL = 14;
-var MAX_SIDE = 3;
-var BLACK = 10;
-var WALL_V = 45;
-var WALL_BRIGHT = 55;
-var TINT = 8;
-var TINT_SAME = 8;
-var WALL_TINT = 100;
-var HOVER_LO = 4;
-function fitComb(score, from, to, count, pMin, pMax, step = 0.25, minFirst = 0, tol = 1) {
-  const pad = Math.ceil(pMax) + 4;
-  const dil = new Float32Array(score.length + 2 * pad);
-  for (let x = -pad; x < score.length + pad; x++) {
-    let v = 0;
-    for (let d = -tol; d <= tol; d++) v = Math.max(v, score[x + d] ?? 0);
-    dil[x + pad] = v;
-  }
-  const at = (x) => dil[Math.round(x) + pad];
-  let bv = 0, boff = 0, bp = pMin, any = false;
-  for (let p = pMin; p <= pMax; p += step) {
-    const last = to - (count - 1) * p;
-    for (let off = from; off < last; off++) {
-      if (at(off) < minFirst) continue;
-      let s = 0, lo = Infinity, x = off;
-      for (let k = 0; k < count; k++, x += p) {
-        const v2 = at(x);
-        s += v2;
-        if (v2 < lo) lo = v2;
-      }
-      const out = Math.max(at(off - p), at(off + count * p));
-      const v = s / count + lo - out * 0.5;
-      if (!any || v > bv) {
-        any = true;
-        bv = v;
-        boff = off;
-        bp = p;
-      }
-    }
-  }
-  return any ? { v: bv, off: boff, p: bp } : null;
-}
-function snap(score, x) {
-  const r = Math.round(x);
-  let bx = r;
-  for (let d = -3; d <= 3; d++) if ((score[r + d] ?? 0) > (score[bx] ?? 0)) bx = r + d;
-  return bx;
-}
-function detectGrid(canvas, hint = null) {
-  const { L: L2, W, H, px } = luminance2(canvas);
-  const lum = (x, y) => L2[y * W + x];
-  const colScore = new Float32Array(W);
-  for (let y = 0; y < H; y += 2) {
-    const row = y * W;
-    for (let x = 3; x < W - 3; x++) {
-      const v = L2[row + x];
-      if (v >= LINE_MIN && v - Math.max(L2[row + x - 3], L2[row + x + 3]) >= LINE_RISE) colScore[x]++;
-    }
-  }
-  const typical = median2(Array.from(colScore.subarray(3, W - 3))) ?? 0;
-  const columns = (gx2) => {
-    if (!gx2 || gx2.v < 20) return null;
-    const xs2 = Array.from({ length: GRID_COLS + 1 }, (_, k) => snap(colScore, gx2.off + k * gx2.p));
-    const teeth = xs2.map((x) => Math.max(colScore[x - 1], colScore[x], colScore[x + 1]));
-    const mean = teeth.reduce((a2, b2) => a2 + b2, 0) / teeth.length;
-    return mean < Math.max(20, typical * 4) || teeth.filter((t) => t >= typical * 2).length < GRID_COLS - 1 ? null : xs2;
-  };
-  let gx = null, xs = null;
-  if (hint?.comb) {
-    const { off, p, v } = hint.comb;
-    const near = fitComb(colScore, Math.max(3, off - 4), Math.min(W - 3, off + 4 + GRID_COLS * p), GRID_COLS + 1, p - 0.5, p + 0.5, 0.125);
-    if (near && near.v >= v * 0.7 && (xs = columns(near))) gx = near;
-  }
-  const panelScore = (cand) => {
-    const p = (cand[GRID_COLS] - cand[0]) / GRID_COLS;
-    if (!(p >= 30)) return 0;
-    const colOn = (x, y) => {
-      const v = Math.max(L2[y * W + x - 1], L2[y * W + x], L2[y * W + x + 1]);
-      return v >= LINE_MIN - 4 && v - Math.max(L2[y * W + x - 4], L2[y * W + x + 4]) >= 3;
-    };
-    let top2 = -1, bottom2 = -1;
-    for (let y = 4, run = -1, gap = 0; y < H - 4; y++) {
-      const on = cand.filter((x) => colOn(x, y)).length >= 5;
-      if (on) {
-        if (run < 0) run = y;
-        gap = 0;
-        if (y - run > bottom2 - top2) {
-          top2 = run;
-          bottom2 = y;
-        }
-      } else if (run >= 0 && ++gap > 12) run = -1;
-    }
-    if (top2 < 0) return 0;
-    let score = 0;
-    for (let r = 0; top2 + r * p < bottom2; r++) {
-      for (let q = 0; q < GRID_COLS; q++) {
-        const x0 = cand[q], x1 = cand[q + 1], y0 = top2 + r * p;
-        let txt = 0, n = 0;
-        for (let yy = Math.round(y0 + 2); yy < Math.round(Math.min(y0 + p * 0.28, H - 2)); yy += 2) {
-          for (let x = Math.round(x0 + 3); x < Math.round(x0 + (x1 - x0) * 0.38); x += 2) {
-            n++;
-            const i = (yy * W + x) * 4;
-            if (Math.min(px[i], px[i + 1], px[i + 2]) >= 105) txt++;
-          }
-        }
-        if (n && txt / n >= 0.05) score++;
-      }
-    }
-    return score;
-  };
-  const PANEL_OK = 20;
-  if (!xs) {
-    const pLo = Math.max(30, W / 60), pHi = Math.min(220, W / 9.5);
-    let best = null;
-    {
-      const search = colScore.slice();
-      for (let tries = 0; tries < 3 && !(best && best.score >= PANEL_OK); tries++) {
-        const rough = fitComb(search, 3, W - 3, GRID_COLS + 1, pLo, pHi, 0.5, Math.max(10, typical * 2), 2);
-        if (!rough) break;
-        const fine = fitComb(search, Math.max(3, rough.off - 3), Math.min(W - 3, rough.off + 3 + GRID_COLS * (rough.p + 1)), GRID_COLS + 1, rough.p - 1, rough.p + 1, 0.125);
-        const cand = columns(fine);
-        search.fill(0, Math.max(0, rough.off - 3), Math.min(W, Math.round(rough.off + GRID_COLS * rough.p) + 4));
-        if (!cand) continue;
-        const score = panelScore(cand);
-        if (!best || score > best.score) best = { gx: fine, xs: cand, score };
-      }
-    }
-    if (!best) return null;
-    gx = best.gx;
-    xs = best.xs;
-  }
-  const pitch = (xs[GRID_COLS] - xs[0]) / GRID_COLS;
-  const small = pitch < SMALL_UI_PITCH;
-  const rowScore = new Float32Array(H);
-  for (let y = 3; y < H - 3; y++) {
-    for (let x = xs[0] + 2; x < xs[GRID_COLS] - 2; x += 2) {
-      const v = lum(x, y);
-      if (v >= LINE_MIN && v - Math.max(lum(x, y - 3), lum(x, y + 3)) >= LINE_RISE) rowScore[y]++;
-    }
-  }
-  let bestOff = 0, bestV = -1;
-  for (let off = 0; off < pitch; off++) {
-    let s = 0;
-    for (let y = off; y < H; y += pitch) s += Math.max(rowScore[Math.round(y) - 1] ?? 0, rowScore[Math.round(y)] ?? 0, rowScore[Math.round(y) + 1] ?? 0);
-    if (s > bestV) {
-      bestV = s;
-      bestOff = off;
-    }
-  }
-  const lines = [];
-  for (let y = bestOff; y < H - 3; y += pitch) lines.push(snap(rowScore, y));
-  if (lines.length < 3) return null;
-  const cellFill = (q, y0, y1) => cellStats(L2, px, W, xs[q], xs[q + 1], y0, y1, pitch);
-  const lineStats = (n, get) => {
-    const vals = [];
-    let seen = 0, hidden = 0;
-    for (let i = 0; i < n; i++) {
-      const [v, side] = get(i);
-      if (!Number.isFinite(v) || !Number.isFinite(side)) {
-        hidden++;
-        continue;
-      }
-      if (v < BLACK && side < BLACK) {
-        hidden++;
-        continue;
-      }
-      vals.push(v);
-      if (v - side >= 3) seen++;
-    }
-    return vals.length >= n * 0.25 ? { v: median2(vals), seen: seen / vals.length, hidden: hidden / n } : { v: 0, seen: 0, hidden: 1 };
-  };
-  const vLine = (x, y0, y1) => {
-    const from = Math.round(y0 + (y1 - y0) * 0.15), n = Math.round((y1 - y0) * 0.7);
-    return lineStats(n, (i) => [Math.max(lum(x - 1, from + i), lum(x, from + i), lum(x + 1, from + i)), Math.max(lum(x - 4, from + i), lum(x + 4, from + i))]);
-  };
-  const hLine = (y, x0, x1) => {
-    const from = Math.round(x0 + (x1 - x0) * 0.15), n = Math.round((x1 - x0) * 0.7);
-    return lineStats(n, (i) => [Math.max(lum(from + i, y - 1), lum(from + i, y), lum(from + i, y + 1)), Math.max(lum(from + i, y - 4), lum(from + i, y + 4))]);
-  };
-  const cellHint = (q, y0, y1) => {
-    const x0 = xs[q], x1 = xs[q + 1];
-    let txt = 0, grey2 = 0, n = 0;
-    for (let y = Math.round(y0 + 2); y < Math.round(y1 - 2); y += 2) {
-      for (let x = Math.round(x0 + 2); x < Math.round(x1 - 2); x += 2) {
-        n++;
-        const i = (y * W + x) * 4;
-        const mn = Math.min(px[i], px[i + 1], px[i + 2]);
-        if ((x - x0) / (x1 - x0) < 0.5 && (y - y0) / (y1 - y0) < 0.32 && mn >= 105) txt++;
-        else if (mn >= 25 && mn <= 125) grey2++;
-      }
-    }
-    return n > 0 && (txt / n >= 0.015 || grey2 / n >= 0.3);
-  };
-  const bands = lines.slice(0, -1).map((y, i) => {
-    const y1 = lines[i + 1];
-    const v = xs.map((x) => vLine(x, y, y1));
-    const ok = v.filter((e) => e.seen > 0.3 && e.v >= LINE_MIN - 4).length;
-    const frame = (e) => e.seen > 0.5 && e.v >= WALL_V;
-    const evid = xs.slice(0, -1).some((_, q) => cellHint(q, y, y1));
-    return {
-      y0: y,
-      y1,
-      v,
-      n: ok,
-      ok: (v[0].seen > 0.5 || v[GRID_COLS].seen > 0.5) && ok >= 5 || small && frame(v[0]) && frame(v[GRID_COLS]) && ok >= 3 || ok >= 6 || ok >= 3 && evid
-    };
-  });
-  let a = -1, b = -1;
-  for (let i = 0; i < bands.length; ) {
-    if (!bands[i].ok) {
-      i++;
-      continue;
-    }
-    let j = i;
-    while (j < bands.length && (bands[j].ok || bands[j].n >= 2 && bands[j + 1]?.ok)) j++;
-    if (j - i > b - a) {
-      a = i;
-      b = j;
-    }
-    i = j;
-  }
-  if (a < 0) return null;
-  const colAt = (x, y) => {
-    const v = Math.max(lum(x - 1, y), lum(x, y), lum(x + 1, y));
-    return v >= LINE_MIN - 4 && v - Math.max(lum(x - 4, y), lum(x + 4, y)) >= 3;
-  };
-  const frameAt = (x, y) => colAt(x, y) && Math.max(lum(x - 1, y), lum(x, y), lum(x + 1, y)) >= WALL_V;
-  let top = -1, bottom = -1;
-  for (let y = 4, run = -1, gap = 0; y < H - 4; y++) {
-    const n = xs.filter((x) => colAt(x, y)).length;
-    const on = n >= 5 || small && n >= 3 && frameAt(xs[0], y) && frameAt(xs[GRID_COLS], y);
-    if (on) {
-      if (run < 0) run = y;
-      gap = 0;
-      if (y - run > bottom - top) {
-        top = run;
-        bottom = y;
-      }
-    } else if (run >= 0 && ++gap > 12) run = -1;
-  }
-  while (a < b && lines[a] < top - 3) a++;
-  while (b > a && lines[b] > bottom + 3) b--;
-  if (b - a < 2) return null;
-  const tipsPre = findTips(lum, W, H, xs, lines.slice(a), pitch);
-  const strip = (t) => !tipHide(t, lum, W, pitch, xs) && t.x1 - t.x0 >= 4 * pitch && t.y1 - t.y0 >= 0.3 * pitch && t.x1 > xs[0] && t.x0 < xs[GRID_COLS];
-  const strips = tipsPre.filter(strip);
-  const header = strips.find((t) => t.y1 <= lines[a] + pitch) ?? null;
-  const footer = strips.filter((t) => t.y0 >= lines[b] - pitch).sort((p, q) => p.y0 - q.y0)[0] ?? null;
-  const cap = Math.min(H, footer ? footer.y0 : H);
-  const extra = [];
-  for (let y0 = lines[b]; y0 + pitch * 0.4 < cap; y0 += pitch) {
-    const y1 = y0 + pitch;
-    const ok = xs.filter((x) => {
-      const e = vLine(x, y0, Math.min(y1, H));
-      return e && e.seen > 0.3 && e.v >= LINE_MIN - 4;
-    }).length;
-    const over = tipsPre.some((t) => tipHide(t, lum, W, pitch, xs) && t.y1 > y0 && t.y0 < y1 && t.x1 > xs[0] && t.x0 < xs[GRID_COLS]);
-    const evid = xs.slice(0, -1).some((_, q) => {
-      const f = cellFill(q, y0 + 2, Math.min(y1 - 2, H - 2));
-      return f.dark < 0.6 && f.fill >= CARGO_FILL && f.fill <= 60 && (f.flat >= 0.4 || f.hi >= 0.02) || cellHint(q, y0, y1);
-    });
-    const pass = ok >= 4 || ok >= 2 && (evid || over) || over && (ok >= 1 || evid);
-    if (!pass) break;
-    extra.push(Math.round(y1));
-  }
-  const allLines = lines.slice(0, b + 1).concat(extra);
-  const allBands = allLines.map((y0, i) => ({ v: xs.map((x) => vLine(x, y0 + 2, Math.min(allLines[i + 1] ?? y0 + pitch, H - 2))) }));
-  const ys = allLines.slice(a);
-  const rows = ys.length - 1;
-  const fills = [], vEdges = [], hEdges = [];
-  for (let r = 0; r < rows; r++) {
-    fills.push(xs.slice(0, -1).map((_, q) => cellFill(q, ys[r], ys[r + 1])));
-    vEdges.push(allBands[a + r].v);
-  }
-  for (let k = 0; k <= rows; k++) hEdges.push(xs.slice(0, -1).map((x, q) => hLine(ys[k], x, xs[q + 1])));
-  const tinted = (f) => Math.max(Math.abs(f.rg), Math.abs(f.bg), Math.abs(f.rg - f.bg)) >= TINT;
-  const sameTint = (a2, b2) => a2 && b2 && tinted(a2) && tinted(b2) && Math.abs(a2.rg - b2.rg) + Math.abs(a2.bg - b2.bg) <= TINT_SAME;
-  const edgeKind = (e, a2, b2) => {
-    if (e.hidden >= 0.75 || e.v < BLACK + 4) return "hidden";
-    const same = sameTint(a2, b2);
-    return e.v >= (same ? WALL_TINT : WALL_V) && (e.seen >= 0.4 || small && !same && e.v >= WALL_BRIGHT) ? "wall" : "inner";
-  };
-  const isRed = (q, r) => cellRed(px, W, xs[q], xs[q + 1], ys[r], ys[r + 1], pitch);
-  const red = [];
-  for (let r = 0; r < rows; r++) for (let q = 0; q < GRID_COLS; q++) if (isRed(q, r)) red.push([q, r]);
-  const redSet = new Set(red.map(([q, r]) => `${q},${r}`));
-  const tips = findTips(lum, W, H, xs, ys, pitch);
-  const inTip = (x, y) => tips.some((t) => tipHide(t, lum, W, pitch, xs) && x >= t.x0 && x <= t.x1 && y >= t.y0 && y <= t.y1);
-  const cells = fills.map((row, r) => row.map((f, q) => {
-    if (redSet.has(`${q},${r}`)) return "hidden";
-    if (inTip((xs[q] + xs[q + 1]) / 2, (ys[r] + ys[r + 1]) / 2)) return "hidden";
-    if (f.dark < 0.6 && f.fill >= CARGO_FILL && f.fill <= 60 && (f.flat >= 0.4 || f.hi >= 0.02)) return "cargo";
-    const around = [vEdges[r][q], vEdges[r][q + 1], hEdges[r][q], hEdges[r + 1][q]];
-    return around.filter((e) => e.v >= (small ? LINE_MIN : 35) && e.seen >= 0.5).length >= 3 ? "empty" : "hidden";
-  }));
-  const id = (q, r) => r * GRID_COLS + q;
-  const parent = Array.from({ length: rows * GRID_COLS }, (_, i) => i);
-  const find = (i) => parent[i] === i ? i : parent[i] = find(parent[i]);
-  for (let r = 0; r < rows; r++) for (let q = 0; q < GRID_COLS; q++) {
-    if (cells[r][q] !== "cargo") continue;
-    if (q + 1 < GRID_COLS && cells[r][q + 1] === "cargo" && edgeKind(vEdges[r][q + 1], fills[r][q], fills[r][q + 1]) === "inner") parent[find(id(q + 1, r))] = find(id(q, r));
-    if (r + 1 < rows && cells[r + 1][q] === "cargo" && edgeKind(hEdges[r + 1][q], fills[r][q], fills[r + 1][q]) === "inner") parent[find(id(q, r + 1))] = find(id(q, r));
-  }
-  for (let r = 0; r < rows; r++) for (let q = 0; q < GRID_COLS; q++) {
-    if (cells[r][q] !== "hidden" || !inTip((xs[q] + xs[q + 1]) / 2, (ys[r] + ys[r + 1]) / 2)) continue;
-    if (r > 0 && r + 1 < rows && cells[r - 1][q] === "cargo" && cells[r + 1][q] === "cargo" && edgeKind(hEdges[r][q], fills[r - 1][q], fills[r][q]) !== "wall" && edgeKind(hEdges[r + 1][q], fills[r][q], fills[r + 1][q]) !== "wall") parent[find(id(q, r - 1))] = find(id(q, r + 1));
-    if (q > 0 && q + 1 < GRID_COLS && cells[r][q - 1] === "cargo" && cells[r][q + 1] === "cargo" && edgeKind(vEdges[r][q], fills[r][q - 1], fills[r][q]) !== "wall" && edgeKind(vEdges[r][q + 1], fills[r][q], fills[r][q + 1]) !== "wall") parent[find(id(q - 1, r))] = find(id(q + 1, r));
-  }
-  const groups = /* @__PURE__ */ new Map();
-  for (let r = 0; r < rows; r++) for (let q = 0; q < GRID_COLS; q++) {
-    if (cells[r][q] !== "cargo") continue;
-    const k = find(id(q, r));
-    if (!groups.has(k)) groups.set(k, []);
-    groups.get(k).push([q, r]);
-  }
-  const cargos = [];
-  const dropped = [];
-  const cands = [];
-  for (const list of groups.values()) {
-    const qa = Math.min(...list.map((c) => c[0])), qb = Math.max(...list.map((c) => c[0]));
-    const ra = Math.min(...list.map((c) => c[1])), rb = Math.max(...list.map((c) => c[1]));
-    const w = qb - qa + 1, h = rb - ra + 1;
-    if (w > MAX_SIDE || h > MAX_SIDE) {
-      dropped.push({ qa, ra, w, h, n: list.length, why: "oversize" });
-      continue;
-    }
-    let partial = false, holeTip = true;
-    if (list.length !== w * h) {
-      let ok = true;
-      for (let r = ra; r <= rb; r++) for (let q = qa; q <= qb; q++) {
-        if (cells[r][q] === "empty") ok = false;
-        if (cells[r][q] === "cargo" && list.some(([x, y]) => x === q && y === r)) continue;
-        if (cells[r][q] === "cargo" || !inTip((xs[q] + xs[q + 1]) / 2, (ys[r] + ys[r + 1]) / 2)) holeTip = false;
-      }
-      if (!ok) {
-        dropped.push({ qa, ra, w, h, n: list.length, why: "shape" });
-        continue;
-      }
-      partial = true;
-    }
-    let bad = false;
-    const mark = { cutLow: false, cutUp: false, other: false };
-    const side = (e, cell, clip) => {
-      const k = edgeKind(e);
-      if (k === "hidden" || cell === "hidden") {
-        partial = true;
-        mark.other = true;
-        mark.log = (mark.log ?? []).concat([[k, cell, clip, e.v, e.seen]]);
-      } else if (k === "inner") {
-        if (e.seen >= 0.6 && e.v >= 30) return;
-        if (clip) {
-          partial = true;
-          mark.other = true;
-        } else bad = true;
-      }
-    };
-    // Боковая грань у самой рамки сетки: скрытая или тусклая стена — не повод выбрасывать груз
-    // (граница сетки известна из гребёнки xs[0]/xs[9], груз лежит внутри неё). Чинит пропадание
-    // грузов в правом столбце при затемнённой правой стене прилавка.
-    const sideV = (e, cell, clip) => {
-      const k = edgeKind(e);
-      if (k === "hidden" || cell === "hidden") {
-        if (cell === "hidden") {
-          partial = true;
-          mark.other = true;
-          mark.log = (mark.log ?? []).concat([[k, cell, clip, e.v, e.seen]]);
-        }
-      } else if (k === "inner") {
-        if (e.seen >= 0.6 && e.v >= 30) return;
-        if (!clip) bad = true;
-      }
-    };
-    for (let q = qa; q <= qb; q++) {
-      const e = hEdges[ra][q], k = edgeKind(e);
-      const under = inTip((xs[q] + xs[q + 1]) / 2, ys[ra]);
-      const solid = k === "wall" || k === "inner" && e.seen >= 0.6 && e.v >= 30;
-      if (k === "hidden" || cells[ra - 1]?.[q] === "hidden" || under) {
-        partial = true;
-        mark.other = true;
-      } else if (!solid) {
-        if (ra === 0) {
-          partial = true;
-          mark.cutUp = true;
-        } else bad = true;
-      }
-    }
-    for (let q = qa; q <= qb; q++) {
-      const eB = hEdges[rb + 1][q], below = cells[rb + 1]?.[q];
-      if (rb === rows - 1 && below === void 0) {
-        const k = edgeKind(eB);
-        if (!(k === "wall" || k === "inner" && eB.seen >= 0.6 && eB.v >= 30)) {
-          partial = true;
-          mark.cutLow = true;
-        }
-      } else side(eB, below, rb === rows - 1);
-    }
-    for (let r = ra; r <= rb; r++) {
-      sideV(vEdges[r][qa], cells[r][qa - 1], qa === 0);
-      sideV(vEdges[r][qb + 1], cells[r][qb + 1], qb + 1 === GRID_COLS);
-    }
-    if (bad) {
-      dropped.push({ qa, ra, w, h, n: list.length, why: "bad-edge" });
-      continue;
-    }
-    cands.push({ list, qa, qb, ra, rb, w, h, partial, holeTip, mark });
-  }
-  const icons = /* @__PURE__ */ new Map();
-  const iconHs = [];
-  for (const c of cands) {
-    const fullBox = !c.partial && !c.mark.cutLow && !c.mark.cutUp && !c.mark.other;
-    if (!fullBox && !c.mark.cutLow && !c.mark.cutUp) continue;
-    const yCap = c.mark.cutLow ? Math.min(ys[c.ra] + c.h * pitch * 2.5, ys[rows] + pitch * 0.12, H) : ys[c.ra] + c.h * pitch;
-    const g = iconGeom(px, W, H, xs[c.qa], xs[c.qb + 1], ys[c.ra], yCap, c.ra === 0 ? 0 : 0.12);
-    if (g) icons.set(`${c.qa},${c.ra}`, g);
-    if (fullBox && g) {
-      const hPix = g.bot - g.top + 1;
-      const cell = Math.min(c.w, c.h) * pitch;
-      const boxCy = ys[c.ra] + c.h * pitch / 2;
-      if (Math.abs(g.cy - boxCy) <= c.h * pitch * 0.2 && hPix >= cell * 0.08 && hPix <= cell * 0.72) iconHs.push(hPix);
-    }
-  }
-  const iconH = iconHs.length ? median2(iconHs) : 0;
-  for (const c of cands) {
-    const { list, qa, qb, ra, rb, w, h, holeTip } = c;
-    let partial = c.partial;
-    const mark = c.mark;
-    let g = icons.get(`${qa},${ra}`);
-    if (ra === 0 && g && !mark.other && list.length === w * h) {
-      if (g.top <= ys[ra] + 3) {
-        if (!mark.cutUp) {
-          mark.cutUp = true;
-          partial = true;
-        }
-      } else if (mark.cutUp) {
-        mark.cutUp = false;
-        partial = false;
-      }
-    }
-    if (partial && list.length !== w * h && holeTip && !mark.other && !mark.cutLow && !mark.cutUp) partial = false;
-    let hUse = h;
-    if (!mark.other && list.length === w * h && mark.cutLow !== mark.cutUp && g) {
-      let hEst = null;
-      if (iconH) {
-        const s = hFromIcon(g, h, ys[ra], mark.cutUp ? ys[ra] + h * pitch : null, pitch, iconH);
-        if (s && s.h > h && s.err + 0.12 * pitch < s.errH) hEst = Math.max(1, Math.min(MAX_SIDE, s.h));
-        else if (s && s.errH < 0.12 * pitch) partial = false;
-      }
-      if (hEst == null && mark.cutLow) {
-        hEst = Math.round(2 * (g.cy - ys[ra]) / pitch);
-        if (g.cy >= ys[ra] + (h - 0.5) * pitch) hEst = Math.round(2 * (g.top - ys[ra]) / pitch + 0.55);
-        hEst = Math.max(1, Math.min(MAX_SIDE, hEst));
-        if (hEst <= h) hEst = null;
-      }
-      if (hEst != null) {
-        hUse = hEst;
-        partial = false;
-      }
-    }
-    const up = mark.cutUp ? Math.max(0, hUse - h) : 0;
-    const at = (k) => median2(list.map(([q, r]) => fills[r][q][k]));
-    const fill = at("fill"), tone = { rg: at("rg"), bg: at("bg"), lo: at("lo") };
-    tone.tinted = tinted(tone);
-    cargos.push({ q: qa, r: ra - up, w, h: hUse, x0: xs[qa], y0: ys[ra] - up * pitch, x1: xs[qb + 1], y1: ys[ra] - up * pitch + hUse * pitch, fill, tone, partial });
-  }
-  const grey = cargos.filter((c) => !c.tone.tinted);
-  const usual = median2(grey.map((c) => c.fill)), usualLo = median2(grey.map((c) => c.tone.lo));
-  let hov = null;
-  for (const c of cargos) {
-    let by = -Infinity;
-    if (!c.tone.tinted) {
-      if (usual != null && c.fill >= usual * 1.35) by = c.fill - usual - 5;
-    } else {
-      const peers = cargos.filter((d) => d !== c && d.tone.tinted && sameTint(d.tone, c.tone));
-      const base = peers.length ? Math.min(...peers.map((d) => d.tone.lo)) : usualLo;
-      if (base != null) by = c.tone.lo - base - (peers.length ? 5 : HOVER_LO);
-    }
-    if (by >= 0 && (!hov || by > hov.by)) hov = { c, by };
-  }
-  for (const c of cargos) {
-    c.hover = c === hov?.c;
-    delete c.tone;
-  }
-  return { pitch, xs, ys, rows, cells, cargos, red, fills, tips, vEdges, hEdges, dropped, cursor: findCursor(L2, W, H, xs, ys, rows), comb: { off: gx.off, p: gx.p, v: gx.v } };
-}
-function cellStats(L2, px, W, x0, x1, y0, y1, pitch) {
-  const m = Math.round(pitch * 0.12), v = [], rg = [], bg = [], lo = [];
-  let all = 0, hi = 0, dark = 0;
-  // Яркие пиксели (текст подписи, курсор) в заливку клетки не идут: у 1×1 подпись занимает
-  // почти всю клетку и поднимала медиану выше порога «cargo», из-за чего груз пропадал.
-  // dark теперь честно считает именно чёрные пиксели, а не «всё, что не заливка».
-  for (let y = Math.round(y0 + m); y < Math.round(y1 - m); y += 3) for (let x = Math.round(x0 + m); x < Math.round(x1 - m); x += 3) {
-    all++;
-    const l = L2[y * W + x];
-    const i = (y * W + x) * 4;
-    const mn = Math.min(px[i], px[i + 1], px[i + 2]);
-    if (mn >= 145) {
-      hi++;
-      continue;
-    }
-    if (l < BLACK) {
-      dark++;
-      continue;
-    }
-    v.push(l);
-    rg.push(px[i] - px[i + 1]);
-    bg.push(px[i + 2] - px[i + 1]);
-    lo.push(mn);
-  }
-  if (!v.length) return { fill: 0, flat: 0, dark: 1, hi: hi / Math.max(1, all), rg: 0, bg: 0, lo: 0 };
-  v.sort((x, y) => x - y);
-  const fill = v[v.length >> 1];
-  return { fill, flat: v.filter((l) => Math.abs(l - fill) <= 4).length / v.length, dark: dark / all, hi: hi / all, rg: median2(rg), bg: median2(bg), lo: median2(lo) };
-}
-function iconGeom(px, W, H, bx0, bx1, by0, by1, skipFrac = 0) {
-  let rows = [], xs = [];
-  const x0 = Math.max(0, Math.round(bx0)), x1 = Math.min(W, Math.round(bx1));
-  const yTop = Math.max(0, Math.round(by0 + (by1 - by0) * skipFrac));
-  const width = (x1 - x0) / 2;
-  const marks = [];
-  for (let y = yTop; y < Math.min(H, Math.round(by1)); y++) {
-    let grey = 0, white = 0;
-    for (let x = x0; x < x1; x += 2) {
-      const i = (y * W + x) * 4;
-      const mn = Math.min(px[i], px[i + 1], px[i + 2]);
-      if (mn >= 145) white++;
-      else if (mn >= 25 && mn <= 125) grey++;
-    }
-    if (grey >= width * 0.13 && white <= width * 0.06) marks.push(y);
-  }
-  let best = [], cur = [];
-  for (const y of marks) {
-    if (cur.length && y - cur[cur.length - 1] > 2) {
-      if (cur.length > best.length) best = cur;
-      cur = [];
-    }
-    cur.push(y);
-  }
-  if (cur.length > best.length) best = cur;
-  rows = best;
-  if (rows.length < 2) return null;
-  for (let x = Math.max(0, Math.round(bx0)); x < Math.min(W, Math.round(bx1)); x++) {
-    let grey = 0;
-    for (let y = rows[0]; y <= rows[rows.length - 1]; y++) {
-      const i = (y * W + x) * 4;
-      const mn = Math.min(px[i], px[i + 1], px[i + 2]);
-      if (mn >= 25 && mn <= 125) grey++;
-    }
-    if (grey >= (rows[rows.length - 1] - rows[0] + 1) * 0.5) xs.push(x);
-  }
-  const top = rows[0], bot = rows[rows.length - 1];
-  const cx = xs.length ? (xs[0] + xs[xs.length - 1]) / 2 : (bx0 + bx1) / 2;
-  if (Math.abs(cx - (bx0 + bx1) / 2) > (bx1 - bx0) * 0.3) return null;
-  return {
-    top,
-    bot,
-    cy: (top + bot) / 2,
-    cx,
-    w: xs.length ? xs[xs.length - 1] - xs[0] + 1 : bx1 - bx0
-  };
-}
-function hFromIcon(g, hLat, y0, yBottom, pitch, iconH) {
-  if (!g || !(iconH > 0)) return null;
-  const fromBottom = yBottom != null;
-  const observed = fromBottom ? g.bot : g.top;
-  if (observed == null) return null;
-  const errOf = (h) => {
-    const cy = fromBottom ? yBottom - h * pitch / 2 : y0 + h * pitch / 2;
-    return Math.abs((fromBottom ? cy + iconH / 2 : cy - iconH / 2) - observed);
-  };
-  let best = null;
-  for (let h = Math.max(1, hLat); h <= MAX_SIDE; h++) {
-    const err = errOf(h);
-    if (!best || err < best.err) best = { h, err };
-  }
-  return best ? { ...best, errH: errOf(hLat) } : null;
-}
-function cellRed(px, W, x0, x1, y0, y1, pitch) {
-  const m = Math.round(pitch * 0.15);
-  let red = 0, all = 0;
-  for (let y = y0 + m; y < y1 - m; y += 3) for (let x = x0 + m; x < x1 - m; x += 3) {
-    const i = (y * W + x) * 4;
-    all++;
-    if (px[i] >= 45 && px[i] - Math.max(px[i + 1], px[i + 2]) >= 25) red++;
-  }
-  return red >= all * 0.4;
-}
 function lightArea(prev, W, H) {
   const p = prev.pitch;
   const x0 = Math.max(0, Math.floor(prev.xs[0] - 6 * p)), y0 = Math.max(0, Math.floor(prev.ys[0] - p));
   const x1 = Math.min(W, Math.ceil(prev.xs[GRID_COLS] + 6 * p)), y1 = Math.min(H, Math.ceil(prev.ys[prev.rows] + 4 * p));
   return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
-}
-function detectLight(canvas, prev, ox, oy) {
-  const { L: L2, W, H, px } = luminance2(canvas);
-  const lum = (x, y) => L2[y * W + x];
-  const pitch = prev.pitch, rows = prev.rows;
-  const xs = prev.xs.map((x) => Math.round(x - ox)), ys = prev.ys.map((y) => Math.round(y - oy));
-  if (ys[rows] > H - 1) ys[rows] = H - 1;
-  if (xs[0] < 4 || xs[GRID_COLS] > W - 4 || ys[0] < 4 || ys[rows] > H - 1) return null;
-  const at = (x, y) => lum(x, y < 0 ? 0 : y > H - 1 ? H - 1 : y);
-  const hits = (y) => {
-    let n = 0;
-    for (let x = xs[0] + 2; x < xs[GRID_COLS] - 2; x += 2) {
-      const v = Math.max(at(x, y - 1), lum(x, y), at(x, y + 1));
-      if (v >= LINE_MIN && v - Math.max(at(x, y - 4), at(x, y + 4)) >= LINE_RISE) n++;
-    }
-    return n;
-  };
-  let onLines = 0, offLines = 0;
-  for (let r = 0; r <= rows; r++) onLines += hits(ys[r]);
-  for (let r = 0; r < rows; r++) offLines += hits(Math.round((ys[r] + ys[r + 1]) / 2));
-  if (onLines < 2 * offLines + rows) return null;
-  const fills = [], cells = [], red = [];
-  const tips = findTips(lum, W, H, xs, ys, pitch);
-  const inTip = (x, y) => tips.some((t) => tipHide(t, lum, W, pitch, xs) && x >= t.x0 && x <= t.x1 && y >= t.y0 && y <= t.y1);
-  let same = 0, differ = 0;
-  for (let r = 0; r < rows; r++) {
-    const fr = [], cr = [];
-    for (let q = 0; q < GRID_COLS; q++) {
-      const f = cellStats(L2, px, W, xs[q], xs[q + 1], ys[r], ys[r + 1], pitch);
-      const isRed = cellRed(px, W, xs[q], xs[q + 1], ys[r], ys[r + 1], pitch);
-      const isTip = inTip((xs[q] + xs[q + 1]) / 2, (ys[r] + ys[r + 1]) / 2);
-      if (isRed) red.push([q, r]);
-      const cargo = !isRed && !isTip && f.dark < 0.6 && f.fill >= CARGO_FILL && f.fill <= 60 && (f.flat >= 0.4 || f.hi >= 0.02);
-      const cell = isRed || isTip ? "hidden" : cargo ? "cargo" : f.dark >= 0.6 ? "hidden" : "empty";
-      const was = prev.cells[r]?.[q];
-      if (cell !== "hidden" && (was === "cargo" || was === "empty")) {
-        if (cell === "cargo" === (was === "cargo")) same++;
-        else differ++;
-      }
-      fr.push(f);
-      cr.push(cell);
-    }
-    fills.push(fr);
-    cells.push(cr);
-  }
-  if (differ > Math.max(2, (same + differ) * 0.1)) return null;
-  const back = (t) => t && { x0: t.x0 + ox, y0: t.y0 + oy, x1: t.x1 + ox, y1: t.y1 + oy };
-  const cu = findCursor(L2, W, H, xs, ys, rows);
-  return { light: true, pitch, xs: prev.xs, ys: prev.ys, rows, cells, cargos: [], red, fills, tips: tips.map(back), cursor: cu ? { x: cu.x + ox, y: cu.y + oy } : null };
-}
-function tipHide(t, lum, W, pitch, xs) {
-  const w = t.x1 - t.x0, h = t.y1 - t.y0;
-  if (w > Math.min(6 * pitch, (xs[GRID_COLS] - xs[0]) * 0.75) || h > 2.6 * pitch || h < 0.35 * pitch) return false;
-  let white = 0, all = 0;
-  for (let y = Math.round(t.y0); y < t.y1; y += 2) for (let x = Math.round(t.x0); x < t.x1; x += 2) {
-    all++;
-    if (lum(x, y) >= 150) white++;
-  }
-  return all > 0 && white / all >= 0.012;
-}
-var CURSOR_LUM = 205;
-var CURSOR_MIN_PX = 12;
-var CURSOR_MAX_PX = 1500;
-var CURSOR_W = 42;
-var CURSOR_H = 54;
-function findCursor(L2, W, H, xs, ys, rows) {
-  const x0 = Math.max(0, Math.round(xs[0])), x1 = Math.min(W - 1, Math.round(xs[GRID_COLS]));
-  const y0 = Math.max(0, Math.round(ys[0])), y1 = Math.min(H - 1, Math.round(ys[rows]));
-  const cols = x1 - x0 + 1, rowsN = y1 - y0 + 1;
-  if (cols < 12 || rowsN < 12) return null;
-  const rowN = new Int32Array(y1 + 2), colN = new Int32Array(x1 + 2);
-  let total = 0;
-  for (let y = y0; y <= y1; y++) {
-    const r = y * W;
-    for (let x = x0; x <= x1; x++) if (L2[r + x] >= CURSOR_LUM) {
-      rowN[y]++;
-      colN[x]++;
-      total++;
-    }
-  }
-  if (total >= CURSOR_MIN_PX && total <= CURSOR_MAX_PX) {
-    const band = (arr, from, to, win) => {
-      let sum = 0;
-      for (let i = from; i < from + win && i <= to; i++) sum += arr[i];
-      let best = sum, at = from;
-      for (let i = from + win; i <= to; i++) {
-        sum += arr[i] - arr[i - win];
-        if (sum > best) {
-          best = sum;
-          at = i - win + 1;
-        }
-      }
-      return { at, n: best };
-    };
-    const bh = band(rowN, y0, y1, Math.min(CURSOR_H, rowsN));
-    const bw = band(colN, x0, x1, Math.min(CURSOR_W, cols));
-    if (bh.n >= CURSOR_MIN_PX && bw.n >= 4) {
-      const bx0 = bw.at, bx1 = Math.min(x1, bw.at + CURSOR_W - 1), by1 = Math.min(y1, bh.at + CURSOR_H - 1);
-      for (let y = bh.at; y <= by1; y++) {
-        let n = 0, sx = 0;
-        for (let x = bx0; x <= bx1; x++) if (L2[y * W + x] >= CURSOR_LUM) {
-          n++;
-          sx += x;
-        }
-        if (!n) continue;
-        if (n > 4) break;
-        return { x: Math.round(sx / n), y };
-      }
-    }
-  }
-  return findCursorShape(L2, W, x0, x1, y0, y1);
-}
-// Запасной путь, когда текст подписей почти того же цвета, что курсор: быстрый путь
-// ломается (текст поднимает счётчики строк/столбцов). Ищем саму форму стрелки Windows:
-// цепочку узких ярких полос с почти вертикальным левым краем, растущих сверху вниз,
-// с узким «хвостом» ниже самой широкой строки. Буквы текста такую форму не дают.
-function findCursorShape(L2, W, x0, x1, y0, y1) {
-  const RUN_MAX = 24;
-  const rows2 = [];
-  for (let y = y0; y <= y1; y++) {
-    const r = y * W;
-    let runs = [], start = -1;
-    for (let x = x0; x <= x1 + 1; x++) {
-      const on = x <= x1 && L2[r + x] >= CURSOR_LUM;
-      if (on && start < 0) start = x;
-      else if (!on && start >= 0) {
-        if (x - start <= RUN_MAX) runs.push([start, x - 1]);
-        start = -1;
-      }
-    }
-    if (runs.length) rows2.push({ y, runs });
-  }
-  const chains = [];
-  for (const { y, runs } of rows2) {
-    // 1) пересекающиеся полосы одной строки — в одну группу
-    const sorted = [...runs].sort((a, b) => a[0] - b[0]);
-    const groups = [];
-    for (const run of sorted) {
-      const last = groups[groups.length - 1];
-      if (last && run[0] <= last[1] + 1) {
-        if (run[1] > last[1]) last[1] = run[1];
-      } else groups.push([run[0], run[1]]);
-    }
-    // 2) каждую группу присоединяем к цепочке прошлого ряда (x-пересечение) или создаём новую
-    for (const g of groups) {
-      let ch = null;
-      for (const c of chains) {
-        if (y - c.y1 > 1) continue;
-        const lastRow = c.rows[c.rows.length - 1];
-        if (lastRow && lastRow.runs.some((prev) => g[0] <= prev[1] + 1 && g[1] >= prev[0] - 1)) {
-          ch = c;
-          break;
-        }
-      }
-      const w = g[1] - g[0] + 1;
-      if (!ch) {
-        ch = { y0: y, y1: y, rows: [], px: 0 };
-        chains.push(ch);
-      }
-      ch.rows.push({ y, runs: [g], l: g[0], r: g[1], w });
-      ch.px += w;
-      ch.y1 = y;
-    }
-  }
-  let best = null;
-  for (const c of chains) {
-    const h = c.y1 - c.y0 + 1;
-    if (h < 10 || h > 60 || c.px < CURSOR_MIN_PX) continue;
-    const wmax = Math.max(...c.rows.map((row) => row.w));
-    if (wmax < 6 || wmax > 22) continue;
-    const ls = c.rows.map((row) => row.l);
-    if (Math.max(...ls) - Math.min(...ls) > 3) continue;
-    let wideAt = -1;
-    c.rows.forEach((row, i) => {
-      if (wideAt < 0 && row.w >= wmax * 0.92) wideAt = i;
-    });
-    if (wideAt < 4) continue;
-    const head = c.rows.slice(0, wideAt + 1), tail = c.rows.slice(wideAt + 1);
-    if (head[0].w > 3) continue;
-    let growOk = true;
-    for (let i = 1; i < head.length; i++) if (head[i].w < head[i - 1].w - 1) {
-      growOk = false;
-      break;
-    }
-    if (!growOk || !tail.length) continue;
-    const tailOk = tail.filter((row) => row.w <= Math.max(4, wmax * 0.35) + 2).length;
-    if (tailOk < tail.length * 0.7) continue;
-    if (!best || c.px > best.px) best = c;
-  }
-  if (!best) return null;
-  const tip = best.rows[0];
-  return { x: Math.round(tip.l + tip.w / 2), y: best.y0 };
-}
-function findTips(lum, W, H, xs, ys, pitch) {
-  const minRun = pitch * 0.6, from = Math.max(0, Math.round(xs[0] - 6 * pitch));
-  const overLine = (x0, x1) => xs.some((x) => x0 + 3 < x && x < x1 - 3);
-  const runs = [];
-  for (let y = Math.max(0, Math.round(ys[0] - pitch)); y < Math.min(H, ys.at(-1) + 4 * pitch); y += 2) {
-    let best = null;
-    for (let x = from, start = -1; x <= W; x++) {
-      if (x < W && lum(x, y) < BLACK) {
-        if (start < 0) start = x;
-        continue;
-      }
-      if (start >= 0 && x - start >= minRun && overLine(start, x) && (!best || x - start > best.x1 - best.x0)) best = { x0: start, x1: x };
-      start = -1;
-    }
-    if (best) runs.push({ y, ...best });
-  }
-  const tips = [];
-  for (let i = 0; i < runs.length; ) {
-    let j = i + 1;
-    while (j < runs.length && runs[j].y - runs[j - 1].y <= pitch * 0.5) j++;
-    const part = runs.slice(i, j);
-    const t = { x0: Math.min(...part.map((p) => p.x0)), x1: Math.max(...part.map((p) => p.x1)), y0: part[0].y, y1: part.at(-1).y };
-    if (t.y1 - t.y0 >= pitch * 0.4) tips.push(t);
-    i = j;
-  }
-  return tips;
 }
 function cargoAt(det, x, y) {
   return det.cargos.find((c) => x >= c.x0 && x < c.x1 && y >= c.y0 && y < c.y1) ?? null;
@@ -3803,6 +2990,8 @@ var TooltipReader = class _TooltipReader {
     this.loading = null;
     this.capture = null;
     this.frames = [];
+    this.wantKeep = 0;
+    this.keptWait = [];
     this.earlier = /* @__PURE__ */ new WeakMap();
     this.lastFrame = null;
     this.lastText = "";
@@ -3857,6 +3046,27 @@ var TooltipReader = class _TooltipReader {
     this.capture = null;
     for (const f of this.frames ?? []) f.bitmap.close();
     this.frames = [];
+    this.wantKeep = 0;
+    for (const w of this.keptWait.splice(0)) w(null);
+  }
+  // v18.63: кадр по требованию — берём следующий кадр захвата в буфер мимо обычного интервала
+  // 0.3 с. Нужен сразу после NCC-звука: вспышка красного у быстрого щелчка короткая, окно
+  // красного 0.45 с при кадрах раз в 0.3 с — это 1-2 кадра, и те могли лечь мимо вспышки.
+  keepNext(ms = 800) {
+    return new Promise((res) => {
+      if (!this.canRead) return res(null);
+      this.wantKeep++;
+      let w = null, t = null;
+      const done = (f) => {
+        clearTimeout(t);
+        const i = this.keptWait.indexOf(w);
+        if (i >= 0) this.keptWait.splice(i, 1);
+        res(f);
+      };
+      w = (f) => done(f);
+      t = setTimeout(() => done(null), ms);
+      this.keptWait.push(w);
+    });
   }
   get canRead() {
     return !!this.capture && this.capture.track.readyState === "live";
@@ -3894,10 +3104,12 @@ var TooltipReader = class _TooltipReader {
           }
         }
         const frame = { at: Date.now(), bitmap: shot };
-        const keep = !this.frames.length || frame.at - this.frames.at(-1).at >= FRAME_GAP_MS;
+        const keep = this.wantKeep > 0 || !this.frames.length || frame.at - this.frames.at(-1).at >= FRAME_GAP_MS;
         if (keep) {
+          if (this.wantKeep > 0) this.wantKeep--;
           this.frames.push(frame);
           while (this.frames.length > FRAMES_KEEP) this.frames.shift().bitmap.close();
+          for (const w of this.keptWait.splice(0)) w(frame);
           this.onFrame?.();
         }
         if (this.onCapture) this.onCapture(frame, !keep);
@@ -4968,7 +4180,13 @@ function soundLabel(s) {
 var allEvents = () => [...state.events, ...state.rejected];
 var waitingGrid = () => reader.canRead && !tracker.locked;
 engine.addEventListener("event", async (e) => {
-  if (waitingGrid()) return;
+  if (waitingGrid()) {
+    // v18.63: этот пропуск раньше был немым — взятие до фиксации сетки исчезало без следа
+    // (юзер: «нечё не происходит», а в журнале пусто). Теперь след виден: если потери юзера
+    // живут здесь, журнал покажет это сразу.
+    pushLog(`звук ${new Date(e.detail.at).toLocaleTimeString("ru-RU")}: сетка ещё не сохранена — взятие пропущено`);
+    return;
+  }
   const { at, candidates = [e.detail] } = e.detail;
   const possible = await remote.possibleAsync(state.profileId, state.typeId, state.price);
   const result = classify(candidates, possible, state.minMatch);
@@ -5001,24 +4219,35 @@ engine.addEventListener("event", async (e) => {
   pushLog(`звук ${new Date(at).toLocaleTimeString("ru-RU")} пик ${chosen.peakDb.toFixed(1)} дБ ${accepted ? "ПРИНЯТ" : `отброшен (${reason})`} · звуки [${top3}] · порог ${state.minMatch}${weak}${lagTxt}`);
   const dup = accepted && topId != null && state.events.find((x) => x.enabled && x.topId === topId && Math.abs(x.at - at) <= DUP_MS);
   if (dup) {
-    // v18.61: раньше любой повтор звука за 1.5 с отбрасывался — вместе с РЕАЛЬНЫМИ вторыми
-    // взятиями. Юзер тапает однотипные грузы подряд каждые ~1.3 с (лог 11.11: 16:31:24 —
-    // потерян груз 7,0; 16:31:42 — потеряно взятие 5,1), и каждый второй груз оставался без
-    // проверки. Повтор — эхо одного взятия, только пока курсор на ТОМ ЖЕ грузе. Свежее
-    // наведение на ДРУГОЙ груз перед этим звуком — отдельное взятие: считаем его событием
-    // (заодно это чинит окно red: подавленный раньше звук не мешал guard'у newer()).
+    // v18.63: раньше «повтором» считалось всё, что не удалось опознать по наведению: нет
+    // свежего cur у щелчка — значит эхо, звук молча умирал. Но cur пропадает ровно там, где
+    // наведение теряется (курсор под плашкой при взятии, медленный перенос, пауза >1.5 с) —
+    // и РЕАЛЬНЫЕ вторые взятия терялись пачками (лог 11.11: грузы 7,0 и 5,1). Теперь эхо
+    // надо ДОКАЗАТЬ: тот же груз у щелчка (свежее наведение ИЛИ красное живого скана),
+    // либо близкий по времени повтор одного аудио-щелчка. Не доказан — новое взятие:
+    // лишний вердикт на тот же груз безвреден, потерянная проверка — нет; куда его
+    // положить, решит привязка (red → hold → hover → read → кадры).
     const click = at - (e.detail.ncc ? NCC_DELAY_MS : OLD_DELAY_MS);
     const fresh2 = (x) => x.key && x.at <= click - 50 && x.at >= click - HOVER_MAX_MS;
     const cur = grid.hoverLog.filter(fresh2).at(-1);
+    const holdNear = flow.holdKey && flow.holdSeen >= click - HOLD_NEAR_MS && flow.holdSeen <= click + HOLD_NEAR_MS ? flow.holdKey : null;
+    const target = cur?.key ?? holdNear;
     const dupClick = dup.at - (dup.delay ?? OLD_DELAY_MS);
     const prev = grid.hoverLog.filter((x) => x.key && x.at <= dupClick - 50 && x.at >= dupClick - HOVER_MAX_MS).at(-1);
     // Где было предыдущее взятие: привязка, а если её нет — куда смотрел курсор тогда.
     const known = dup.cargo?.key ?? prev?.key ?? null;
-    if (!cur || known == null || cur.key === known) {
-      pushLog(`звук ${new Date(at).toLocaleTimeString("ru-RU")}: повтор звука ${topId} (${Math.round(at - dup.at)} мс) — вторым не считаю`);
+    const gap = Math.round(at - dup.at);
+    if (target != null && known != null && target !== known) {
+      pushLog(`звук ${new Date(at).toLocaleTimeString("ru-RU")}: звук ${topId} через ${gap} мс, у щелчка другой груз ${target} — считаю новым взятием`);
+    } else if (target != null && known != null) {
+      pushLog(`звук ${new Date(at).toLocaleTimeString("ru-RU")}: повтор звука ${topId} (${gap} мс) на том же грузе ${target} — вторым не считаю`);
       return;
+    } else if (at - dup.at <= ECHO_MS) {
+      pushLog(`звук ${new Date(at).toLocaleTimeString("ru-RU")}: повтор звука ${topId} через ${gap} мс — эхо одного щелчка, вторым не считаю`);
+      return;
+    } else {
+      pushLog(`звук ${new Date(at).toLocaleTimeString("ru-RU")}: звук ${topId} через ${gap} мс от груза ${known ?? "?"}, у щелчка ни наведения, ни красного — эхо не доказано, считаю новым взятием`);
     }
-    pushLog(`звук ${new Date(at).toLocaleTimeString("ru-RU")}: звук ${topId} через ${Math.round(at - dup.at)} мс, но наведён другой груз ${cur.key} — считаю новым взятием`);
   }
   if (!accepted) {
     state.rejected.unshift({ ...ev, enabled: false, rejected: true, reason });
@@ -5180,12 +4409,41 @@ function onGridMessage({ data: { id, det, ms } }) {
 }
 if (gridWorker) gridWorker.onmessage = onGridMessage;
 function reviveGridWorker(w) {
-  if (!w) return;
-  gridLog("воркер сетки из файла не поднялся — взял встроенный");
-  gridWorker = w;
-  w.onmessage = onGridMessage;
+  if (w) {
+    gridLog("воркер сетки из файла не поднялся — взял встроенный");
+    gridWorker = w;
+    w.onmessage = onGridMessage;
+  } else {
+    // v18.63: встроенного нет тоже — раньше мёртвый воркер оставался «рабочим» для postDetect
+    // и каждый кадр ждал таймаут. Чистим честно: детекции нет до перезагрузки страницы.
+    gridLog("воркер сетки мёртв — детекция кадров выключена до перезагрузки страницы");
+    try {
+      gridWorker?.terminate();
+    } catch {
+    }
+    gridWorker = null;
+  }
   for (const [, fn] of gridWaiting) fn(null);
   gridWaiting.clear();
+}
+// v18.63: перезапуск зависшего воркера сетки по счётчику таймаутов postDetect.
+var gridStalls = 0;
+var gridWorkerDead = false;
+function resetGridWorker() {
+  try {
+    gridWorker?.terminate();
+  } catch {
+  }
+  gridWorker = null;
+  gridWorkerDead = false;
+  gridStalls = 0;
+  try {
+    gridWorker = makeWorker("grid-worker.js", reviveGridWorker);
+    gridWorker.onmessage = onGridMessage;
+    gridLog("воркер сетки перезапущен");
+  } catch (err) {
+    console.error("grid-worker:", err);
+  }
 }
 var GRID_STUCK_MS = 15e3;
 var DETECT_TIMEOUT_MS = 5e3;
@@ -5226,6 +4484,11 @@ var LABEL_TRIES = 4;
 var HOVER_LOG_MS = 8e3;
 var HOVER_MAX_MS = 1500;
 var DUP_MS = 1500;
+// v18.63: эхо ОДНОГО аудио-щелчка (двойное срабатывание детектора по одному звуку) укладывается
+// в сотни миллисекунд. Всё, что дальше, повтором не считается без доказательства (см. dup выше).
+var ECHO_MS = 350;
+// v18.63: окно «красное видели живым сканом у щелчка» для проверки повтора (как heldSeen).
+var HOLD_NEAR_MS = 400;
 var grid = { busy: 0, lastAt: 0, seen: false, seenAt: 0, full: null, fullAt: 0, firstAt: 0, hardAt: 0, ocrAt: 0, hoverKey: null, hoverSince: 0, hoverSinceKey: null, hoverCell: null, hoverLog: [], journal: [], scans: 0, light: 0, found: 0, frame: "", inFrame: 0 };
 var LOG_LIMIT = 5e3;
 var logLines = [];
@@ -5260,35 +4523,34 @@ function saveLog() {
   setTimeout(() => URL.revokeObjectURL(a.href), 2e4);
   gridLog(`журнал сохранён: ${logLines.length} строк`);
 }
-var gridHint = null;
-function detectHere(bitmap, light) {
-  let det = null;
-  const t0 = performance.now();
-  try {
-    const canvas = document.createElement("canvas");
-    canvas.width = bitmap.width;
-    canvas.height = bitmap.height;
-    canvas.getContext("2d", { willReadFrequently: true }).drawImage(bitmap, 0, 0);
-    det = light ? detectLight(canvas, light.prev, light.ox, light.oy) : detectGrid(canvas, gridHint);
-    if (!light) gridHint = det;
-  } catch (err) {
-    console.warn("Сетка:", err);
-  } finally {
-    lastScanMs = performance.now() - t0;
-    bitmap.close?.();
-  }
-  return det;
-}
+// v18.63: запасной детекции на главном потоке больше НЕТ. Тот путь был устаревшей копией
+// воркера (findCursor без отсечения плашек tips/box2 — наведения цеплялись к чужим грузам,
+// полный поиск блокировал страницу и ронял фпс) и включался молча при любом сбое воркера.
+// Теперь: нет воркера — нет детекции, кадр закрывается (утечка ImageBitmap — это GPU-память),
+// в журнал пишем один раз, а сам воркер сетки можно перезапустить (resetGridWorker).
 function postDetect(bitmap, light) {
-  if (!gridWorker) return Promise.resolve(detectHere(bitmap, light));
+  if (!gridWorker) {
+    bitmap.close?.();
+    if (!gridWorkerDead) gridLog("воркер сетки не поднялся — детекция кадров выключена, перезагрузите страницу");
+    gridWorkerDead = true;
+    return Promise.resolve(null);
+  }
   const id = ++gridSeq;
   return new Promise((resolve) => {
     const timer = setTimeout(() => {
       gridWaiting.delete(id);
       resolve(null);
+      // v18.63: три таймаута подряд — воркер умер изнутри (исключение в onmessage НЕ убивает
+      // объект Worker: раньше каждый кадр после этого ждал полные 5 с и возвращал null,
+      // сетка замирала навсегда, вердикты не появлялись). Пересоздаём воркер на месте.
+      if (++gridStalls >= 3) {
+        gridStalls = 0;
+        resetGridWorker();
+      }
     }, DETECT_TIMEOUT_MS);
     gridWaiting.set(id, (det) => {
       clearTimeout(timer);
+      gridStalls = 0;
       resolve(det);
     });
     gridWorker.postMessage({ id, bitmap, light }, [bitmap]);
@@ -5401,7 +4663,11 @@ function trackHover(det, frame, image) {
   const hov = det.cargos.find((c) => c.hover);
   const near = hov ? tracker.locate(det, hov, shift) : null;
   const own = tracker.hoverOf(det, shift);
-  const heldNow = tracker.locked ? tracker.locateRed(det, shift) : null;
+  // v18.63: красное переноса («держат в руке») ищем и ДО фиксации сетки. Раньше — только при
+  // tracker.locked (фиксация: ≥4 груза и 3 с покоя), и при пересборке сетки или медленной
+  // фиксации flow.holdKey вообще не ставился — у звука исчезал путь «держали в руке», и
+  // взятие оставалось без привязки. Наложение сетки locateRed и так отсекает через shift.
+  const heldNow = tracker.locateRed(det, shift);
   let g = null;
   if (det.cursor && !heldNow) {
     g = cargoUnder(det, det.cursor.x, det.cursor.y, shift);
@@ -5436,14 +4702,14 @@ function trackHover(det, frame, image) {
   if (hoverKey) grid.hoverLastAt = frame.at;
   else if (frame.at - (grid.hoverLastAt ?? 0) > HOVER_GAP_MS) grid.hoverSinceKey = null;
   grid.hoverKey = hoverKey;
-  if (tracker.locked) {
-    if (g) readHoverPrice(image, det, g, shift, at?.tip ?? null);
-    const held = heldNow;
-    if (held) {
-      if (flow.holdKey !== held.key || frame.at - flow.holdSeen > HOLD_GAP_MS) flow.holdAt = frame.at;
-      flow.holdKey = held.key;
-      flow.holdSeen = frame.at;
-    }
+  // v18.63: чтение цены — только на сохранённой сетке (OCR плашки на непокоящейся сетке —
+  // мусор), а память «держали в руке» — на любой: красное у щелчка ценнее статуса сетки.
+  if (tracker.locked && g) readHoverPrice(image, det, g, shift, at?.tip ?? null);
+  const held = heldNow;
+  if (held) {
+    if (flow.holdKey !== held.key || frame.at - flow.holdSeen > HOLD_GAP_MS) flow.holdAt = frame.at;
+    flow.holdKey = held.key;
+    flow.holdSeen = frame.at;
   }
   return changed;
 }
@@ -5527,6 +4793,11 @@ async function linkCargo(ev) {
   const when = new Date(ev.at).toLocaleTimeString("ru-RU");
   const tried = /* @__PURE__ */ new Set();
   const click = clickAt(ev);
+  // v18.63: NCC-звук — щелчок только что был, вспышка красного может идти прямо сейчас, а
+  // сохранённые кадры снимаются раз в ~0.3 с: в окно 0.45 с попадает 1-2 кадра, и у быстрых
+  // щелчков вспышка ложится между ними. Хватаем свежий кадр в буфер сразу, мимо обычного
+  // интервала: окно красного перестаёт зависеть от везения с попаданием кадра.
+  if (!ev.delay && reader.canRead) await reader.keepNext(900);
   const redFrom = click - (ev.delay ? 700 : 100);
   const newer = () => state.events.find((e) => e.at > ev.at);
   const mine = (f) => {
