@@ -5989,7 +5989,8 @@ async function openPip({ quiet = false } = {}) {
     pip.document.addEventListener("click", onMiniPanel);
     pip.document.addEventListener("click", onMiniPop);
     pip.document.addEventListener("click", (e) => {
-      if (e.target.closest?.("[data-mini-reset]")) armReset(e.target.closest("[data-mini-reset]"));
+      // v18.65: и в окне поверх игры сброс — по одному клику, как на сайте.
+      if (e.target.closest?.("[data-mini-reset]")) resetAll();
     });
     pip.document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") closeMiniPop();
