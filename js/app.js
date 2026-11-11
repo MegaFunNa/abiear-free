@@ -3209,6 +3209,11 @@ var GridTracker = class {
     this.reset();
   }
   reset() {
+    // v18.62: перед смертью сетки отдаю события в «память проверок» (keepVerdicts в app.js).
+    // Сброс сетки — хоть кнопкой, хоть автопересбором «кадры не ложатся» — больше не стирает
+    // работу юзера навсегда: когда груз встаёт на ту же клетку тем же размером и типом,
+    // проверки возвращаются (restoreVerdicts).
+    this.onReset?.();
     this.cargos = /* @__PURE__ */ new Map();
     this.baseline = /* @__PURE__ */ new Map();
     this.pending = /* @__PURE__ */ new Map();
@@ -4490,6 +4495,9 @@ function syncPrices() {
 }
 function update() {
   syncPrices();
+  // v18.62: сначала вернуть проверки, уцелевшие в памяти после сброса сетки —
+  // дальше вся отрисовка (клетки, сводка) их уже видит.
+  restoreVerdicts();
   const group = currentGroup();
   const answer = group?.base.answer ?? {};
   const events = group ? group.events.map((e) => e.bySound) : [];
@@ -5295,6 +5303,9 @@ async function detectLightOn(image, prev) {
   return postDetect(bitmap, { prev: { pitch: prev.pitch, xs: prev.xs, ys: prev.ys, rows: prev.rows, cells: prev.cells }, ox: a.x, oy: a.y });
 }
 tracker.onLog = gridLog;
+// v18.62: память проверок — сброс сетки (кнопка/автопересбор) сначала выгружает сюда
+// все привязанные события, и они возвращаются на те же грузы при новой фиксации сетки.
+tracker.onReset = keepVerdicts;
 reader.onCapture = (frame, owned) => {
   scanGrid(frame).catch((err) => console.warn("Сетка:", err)).finally(() => {
     if (owned) frame.bitmap.close();
@@ -5712,6 +5723,123 @@ function fillFromCargo(ev) {
     set("done", true);
   }
 }
+// ---------- v18.62: память проверок + защита кнопки «Сбросить» ----------
+// Кнопка «Сбросить» (и мини-кнопка в окне поверх игры) раньше стирала ВСЕ события одним
+// кликом — в логе юзера от 11.11 она нажималась трижды за сессию и третья нажатие (16:31:27)
+// стёрло ~25 уже проверенных грузов («много товаров не проверяло»). Теперь: клик по сбросу
+// требует подтверждения вторым кликом в течение 2 с; и даже после настоящего сброса
+// привязанные события не пропадают — они возвращаются, когда груз снова появляется
+// на той же клетке тем же размером и тем же типом.
+var keptVerdicts = [];
+var KEEP_TTL_MS = 3e5;
+var KEEP_EV_FIELDS = ["id", "at", "peakDb", "scores", "data", "inCargo", "cargoBest", "overlapped", "quiet", "topId", "delay", "lag", "how"];
+function keepVerdicts() {
+  const live = state.events.filter((e) => e.enabled && e.cargo);
+  for (const e of live) {
+    const ev = {};
+    for (const k of KEEP_EV_FIELDS) ev[k] = e[k];
+    ev.enabled = true;
+    ev.checking = false;
+    ev.fresh = false;
+    ev.linked = true;
+    keptVerdicts.push({
+      at: Date.now(),
+      ev,
+      bySound: [...(e.bySound ?? [])],
+      answer: e.answer ? { ...e.answer, fromGrid: [...(e.answer.fromGrid ?? [])] } : null,
+      cargo: { key: e.cargo.key, q: e.cargo.q, r: e.cargo.r, w: e.cargo.w, h: e.cargo.h, typeId: e.cargo.typeId ?? null, price: e.cargo.price ?? null, priceGuess: !!e.cargo.priceGuess }
+    });
+  }
+  if (live.length) {
+    state.events = state.events.filter((e) => !e.cargo);
+    if (state.currentId != null && !state.events.some((e) => e.id === state.currentId)) state.currentId = null;
+    gridLog(`сетка умерла: помню ${live.length} проверк${live.length === 1 ? "а" : "и"} — верну на те же грузы, когда появятся`);
+  }
+  if (keptVerdicts.length > MAX_EVENTS) keptVerdicts.splice(0, keptVerdicts.length - MAX_EVENTS);
+}
+function restoreVerdicts() {
+  if (!keptVerdicts.length) return;
+  const now = Date.now();
+  keptVerdicts = keptVerdicts.filter((k) => now - k.at < KEEP_TTL_MS);
+  if (!keptVerdicts.length) return;
+  let n = 0;
+  for (const k of keptVerdicts) {
+    if (k.done) continue;
+    const c = k.cargo;
+    if (!c) {
+      k.done = true;
+      continue;
+    }
+    const g = tracker.cargos.get(c.key);
+    if (!g) continue;
+    if (g.w !== c.w || g.h !== c.h) {
+      k.done = true;
+      continue;
+    }
+    // подпись ещё не прочитана — подождём (как прочитают, сюда вернёмся из update())
+    if (c.typeId != null && g.typeId == null) continue;
+    // другой тип на той же клетке — это уже другой груз, проверку не возвращаем
+    if (c.typeId != null && g.typeId !== c.typeId) {
+      k.done = true;
+      continue;
+    }
+    if (c.price != null && !c.priceGuess && g.price == null) {
+      g.price = c.price;
+      gridLog(`груз ${g.key}: цена ${fmt(c.price)} вернулась после сброса`);
+    }
+    const ev2 = { ...k.ev, bySound: new Map(k.bySound), answer: k.answer ? { ...k.answer, fromGrid: k.answer.fromGrid ? [...k.answer.fromGrid] : void 0 } : {} };
+    state.events.unshift(ev2);
+    placeCargo(ev2, g);
+    k.done = true;
+    n++;
+  }
+  if (n) {
+    state.events.length = Math.min(state.events.length, MAX_EVENTS);
+    gridLog(`после сброса вернул проверок: ${n} — грузы те же, вердикты на месте`);
+  }
+}
+// Сброс требует подтверждения: первый клик только «взводит» кнопку (краснеет),
+// второй в течение 2 с — выполняет. Случайный клик по мини-окну поверх игры больше ничего не стирает.
+var resetArmAt = 0;
+var resetArmBtn = null;
+function armReset(btn) {
+  const now = Date.now();
+  if (now - resetArmAt <= 2000) {
+    resetArmAt = 0;
+    disarmReset();
+    resetAll();
+    return;
+  }
+  resetArmAt = now;
+  resetArmBtn = btn ?? null;
+  try {
+    if (btn) {
+      btn.dataset.armBg ??= btn.style.background || "";
+      btn.style.background = "#c33";
+      btn.style.color = "#fff";
+    }
+  } catch {
+  }
+  gridLog("сброс защищён: нажми «Сбросить» ещё раз в течение 2 секунд — только тогда сетка и звуки забудутся (проверки на тех же грузах я и так верну)");
+  setTimeout(() => {
+    if (Date.now() - resetArmAt >= 1900) {
+      resetArmAt = 0;
+      disarmReset();
+    }
+  }, 2100);
+}
+function disarmReset() {
+  const btn = resetArmBtn;
+  resetArmBtn = null;
+  try {
+    if (btn) {
+      btn.style.background = btn.dataset.armBg ?? "";
+      btn.style.color = "";
+      delete btn.dataset.armBg;
+    }
+  } catch {
+  }
+}
 function resetAll() {
   tracker.reset();
   state.events = [];
@@ -5730,7 +5858,7 @@ function resetAll() {
   update();
   renderGridAll();
 }
-$("gridReset").addEventListener("click", resetAll);
+$("gridReset").addEventListener("click", (e) => armReset(e.currentTarget));
 function snapCargoSize(g, typeId = null, price = null) {
   if (!g || g.sizeFixed || !state.profileId) return;
   typeId ??= g.typeId ?? null;
@@ -6545,7 +6673,7 @@ async function openPip({ quiet = false } = {}) {
     pip.document.addEventListener("click", onMiniPanel);
     pip.document.addEventListener("click", onMiniPop);
     pip.document.addEventListener("click", (e) => {
-      if (e.target.closest?.("[data-mini-reset]")) resetAll();
+      if (e.target.closest?.("[data-mini-reset]")) armReset(e.target.closest("[data-mini-reset]"));
     });
     pip.document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") closeMiniPop();
