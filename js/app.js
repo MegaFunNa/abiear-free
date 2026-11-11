@@ -4993,8 +4993,24 @@ engine.addEventListener("event", async (e) => {
   pushLog(`звук ${new Date(at).toLocaleTimeString("ru-RU")} пик ${chosen.peakDb.toFixed(1)} дБ ${accepted ? "ПРИНЯТ" : `отброшен (${reason})`} · звуки [${top3}] · порог ${state.minMatch}${weak}${lagTxt}`);
   const dup = accepted && topId != null && state.events.find((x) => x.enabled && x.topId === topId && Math.abs(x.at - at) <= DUP_MS);
   if (dup) {
-    pushLog(`звук ${new Date(at).toLocaleTimeString("ru-RU")}: повтор звука ${topId} (${Math.round(at - dup.at)} мс) — вторым не считаю`);
-    return;
+    // v18.61: раньше любой повтор звука за 1.5 с отбрасывался — вместе с РЕАЛЬНЫМИ вторыми
+    // взятиями. Юзер тапает однотипные грузы подряд каждые ~1.3 с (лог 11.11: 16:31:24 —
+    // потерян груз 7,0; 16:31:42 — потеряно взятие 5,1), и каждый второй груз оставался без
+    // проверки. Повтор — эхо одного взятия, только пока курсор на ТОМ ЖЕ грузе. Свежее
+    // наведение на ДРУГОЙ груз перед этим звуком — отдельное взятие: считаем его событием
+    // (заодно это чинит окно red: подавленный раньше звук не мешал guard'у newer()).
+    const click = at - (e.detail.ncc ? NCC_DELAY_MS : OLD_DELAY_MS);
+    const fresh2 = (x) => x.key && x.at <= click - 50 && x.at >= click - HOVER_MAX_MS;
+    const cur = grid.hoverLog.filter(fresh2).at(-1);
+    const dupClick = dup.at - (dup.delay ?? OLD_DELAY_MS);
+    const prev = grid.hoverLog.filter((x) => x.key && x.at <= dupClick - 50 && x.at >= dupClick - HOVER_MAX_MS).at(-1);
+    // Где было предыдущее взятие: привязка, а если её нет — куда смотрел курсор тогда.
+    const known = dup.cargo?.key ?? prev?.key ?? null;
+    if (!cur || known == null || cur.key === known) {
+      pushLog(`звук ${new Date(at).toLocaleTimeString("ru-RU")}: повтор звука ${topId} (${Math.round(at - dup.at)} мс) — вторым не считаю`);
+      return;
+    }
+    pushLog(`звук ${new Date(at).toLocaleTimeString("ru-RU")}: звук ${topId} через ${Math.round(at - dup.at)} мс, но наведён другой груз ${cur.key} — считаю новым взятием`);
   }
   if (!accepted) {
     state.rejected.unshift({ ...ev, enabled: false, rejected: true, reason });
@@ -5453,7 +5469,14 @@ async function readLabels(image, det) {
   update();
 }
 var RED_WAIT_MS = 2500;
-var RED_NEAR_MS = 1e3;
+// v18.61: верхнюю границу окна красного для NCC-звуков срезали с 1.0 с до 0.45 с. Красное
+// «своего» взятия — это превью свапа ПЕРЕД щелчком или вспышка сразу после него; в сохранённых
+// кадрах (раз в ~0.3 с) оно попадает в первые один-два кадра. Красное на +0.5…+1.0 с — уже
+// либо перенос предмета над соседом (лог 11.11, 16:31:42: юзер тащил взятый 1×2 над 5,1,
+// и звук груза 6,1 перецепился на 5,1 — 6,1 остался без проверки), либо красное ПОДАВЛЕННОГО
+// следующего взятия. Живой скан (holdAt/holdSeen, окно ±0.4 с) эти случаи и так отсекает —
+// теперь сохранённые кадры играют по тем же правилам.
+var RED_NEAR_MS = 450;
 var linking = 0;
 var linkDetect = async (fn) => {
   linking++;
@@ -6148,7 +6171,11 @@ function readHoverPrice(image, det, g, shift, tip) {
   // Курсор стоит — плашка и её кроп не меняются. Раньше один и тот же кусок читался заново до 14 раз
   // (каждые ~0.3 с), пережигая процессор рядом с игрой. Тот же кроп в том же режиме — пропускаем OCR;
   // попытку считаем, чтобы после 4 неудач рамка расширилась и чтение пошло с другой площадки.
-  const mode = small ? g.priceScans % 2 ? "raw" : "bright" : g.priceScans % 2 ? "bright" : "raw";
+  // v18.61: raw первым на любой сетке. На мелкой сетке bright шёл первым и сжигал попытку:
+  // в логе 11.11 bright не прочитал цену НИ РАЗУ за ~20 попыток (каждая 0.3–14 с в очереди
+  // OCR), raw прочитал каждую плашку. Юзер за время bright-попытки успевал уйти с груза —
+  // и цена не читалась вовсе («не проверило»). bright остаётся второй попыткой чередования.
+  const mode = g.priceScans % 2 ? "bright" : "raw";
   const sig = cropSig(cg, crop.width, crop.height);
   if (sig != null && g.priceSig === `${mode}|${grow}|${sig}`) {
     g.priceTries = (g.priceTries ?? 0) + 1;
